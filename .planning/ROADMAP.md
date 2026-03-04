@@ -12,10 +12,10 @@ CAM goes from blank Tauri 2 project to a shippable Windows desktop app in four p
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Tauri 2 project scaffolded with correct permissions + complete Rust backend (scanner, parser, toggler, groups, IPC commands)
-- [ ] **Phase 2: React UI Core** - Full React frontend: agent/skill/command cards, sidebar navigation, toggle, search, filters, status bar, dark theme
-- [ ] **Phase 3: Live Updates** - Rust file watcher with debounce, self-initiated event suppression, frontend-ready handshake
-- [ ] **Phase 4: Distribution** - Windows installer (.msi/.exe) with icon, version metadata, and documented SmartScreen handling
+- [x] **Phase 1: Foundation** - Tauri 2 project scaffolded with correct permissions + complete Rust backend (scanner, parser, toggler, groups, IPC commands)
+- [x] **Phase 2: React UI Core** - Full React frontend: agent/skill/command cards, sidebar navigation, toggle, search, filters, status bar, dark theme
+- [x] **Phase 3: Live Updates** - Rust file watcher with debounce, self-initiated event suppression, frontend-ready handshake
+- [x] **Phase 4: Distribution** - Windows installer (.msi/.exe) with icon, version metadata, and documented SmartScreen handling
 
 ## Phase Details
 
@@ -85,7 +85,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Not started | - |
-| 2. React UI Core | 0/3 | Not started | - |
-| 3. Live Updates | 0/1 | Not started | - |
-| 4. Distribution | 0/1 | Not started | - |
+| 1. Foundation | 3/3 | Complete | 2026-03-05 |
+| 2. React UI Core | 3/3 | Complete | 2026-03-05 |
+| 3. Live Updates | 1/1 | Complete | 2026-03-05 |
+| 4. Distribution | 1/1 | Complete | 2026-03-05 |

@@ -5,61 +5,59 @@
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Developer can instantly enable or disable any Claude Code agent/skill/command with one click, no filesystem work
-**Current focus:** Phase 1 — Foundation
+**Current focus:** MILESTONE COMPLETE
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-04 — Roadmap created, all 24 v1 requirements mapped
+Phase: 4 of 4 (Distribution) — COMPLETE
+Status: All phases delivered
+Last activity: 2026-03-05 — Phase 4 completed (NSIS installer 2.2 MB)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 8 (Phase 1: 3, Phase 2: 3, Phase 3: 1, Phase 4: 1)
+- Total execution time: ~4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
-
-**Recent Trend:**
-- Last 5 plans: none yet
-- Trend: -
-
-*Updated after each plan completion*
+| 1 - Foundation | 3 | ~1.5h | ~30min |
+| 2 - React UI Core | 3 | ~1h | ~20min |
+| 3 - Live Updates | 1 | ~30min | ~30min |
+| 4 - Distribution | 1 | ~45min | ~45min |
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [Pre-phase]: Tauri 2 over Electron — 5-10 MB binary, native Rust FS ops
-- [Pre-phase]: `.disabled/` subdirectory mechanism — Claude Code ignores it natively
-- [Pre-phase]: Auto-grouping by filename prefix — zero-config, covers GSD and other suites
-- [Pre-phase]: `gray_matter` crate for frontmatter — `serde_yaml` is deprecated/archived since March 2024
+- [Phase 1]: gray_matter 0.3.2 uses Pod type with as_hashmap()
+- [Phase 1]: specta-typescript uses Typescript::new()
+- [Phase 1]: Tauri 2 project scaffolded manually
+- [Phase 2]: Zustand store with optimistic toggle + error revert
+- [Phase 2]: Tailwind CSS 4 with @tailwindcss/vite plugin
+- [Phase 2]: lucide-react for all icons
+- [Phase 2]: Dark theme: #12121c bg, #1a1a2e surface, #00d4aa accent
+- [Phase 3]: notify 8 + notify-debouncer-mini 0.6, 300ms debounce
+- [Phase 3]: AtomicBool suppression for self-initiated toggles (500ms window)
+- [Phase 4]: NSIS target, Python-generated icons, 2.2 MB installer
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- [Phase 1]: Tauri 2 ACL capabilities must be configured before ANY file op code — missing scope silently blocks all FS ops with generic error (C-1)
-- [Phase 1]: `requireLiteralLeadingDot: false` must be set in `tauri.conf.json` at project creation — dotfolder access to `.disabled/` blocked by default (C-2)
-- [Phase 1]: Verify `gray_matter` crate version (0.3.x vs 0.2.x discrepancy in research notes) on crates.io before Cargo.toml
-- [Phase 1]: Verify `tauri-specta` version compatibility with Tauri 2.10.x before Cargo.toml
+- [Phase 1 RESOLVED]: All 4 blockers resolved
+- [Phase 2 RESOLVED]: All 15 requirements implemented, builds pass
+- [Phase 3 RESOLVED]: Watcher + suppression working, all 26 tests pass
+- [Phase 4 RESOLVED]: Installer built successfully
 
 ## Session Continuity
 
-Last session: 2026-03-04
-Stopped at: Roadmap created — ready to begin Phase 1 planning
+Last session: 2026-03-05
+Stopped at: All 4 phases complete — milestone delivered
 Resume file: None
