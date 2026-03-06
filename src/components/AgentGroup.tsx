@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { ChevronDown, ChevronRight, Plus, Check } from "lucide-react";
 import type { AgentInfo } from "../bindings";
 import { useAppStore } from "../lib/store";
-import { Toggle } from "./Toggle";
 import { AgentCard } from "./AgentCard";
 
 interface AgentGroupProps {
@@ -13,14 +11,17 @@ interface AgentGroupProps {
 
 export function AgentGroup({ groupName, items }: AgentGroupProps) {
   const [expanded, setExpanded] = useState(true);
-  const toggleGroup = useAppStore((s) => s.toggleGroup);
+  const setupIds = useAppStore((s) => s.setupIds);
+  const addToSetup = useAppStore((s) => s.addToSetup);
 
-  const allEnabled = items.every((i) => i.enabled);
-  const someEnabled = items.some((i) => i.enabled);
-
-  const handleGroupToggle = () => {
-    const targetState = !allEnabled;
-    toggleGroup(items, targetState);
+  const allInSetup = items.every((i) => setupIds.has(i.id));
+  const handleAddAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    for (const item of items) {
+      if (!setupIds.has(item.id)) {
+        addToSetup(item.id);
+      }
+    }
   };
 
   return (
@@ -39,31 +40,26 @@ export function AgentGroup({ groupName, items }: AgentGroupProps) {
         </span>
         <span className="text-xs text-[#56565f]">({items.length})</span>
         <div className="flex-1" />
-        <div onClick={(e) => e.stopPropagation()}>
-          <Toggle
-            enabled={allEnabled}
-            onToggle={handleGroupToggle}
-            disabled={!someEnabled && allEnabled}
-          />
-        </div>
+        {items.length > 1 && (allInSetup ? (
+          <span className="flex items-center gap-1 text-[11px] font-medium text-[#00d4aa]">
+            <Check className="h-3 w-3" />
+            All in Setup
+          </span>
+        ) : (
+          <button
+            onClick={handleAddAll}
+            className="flex items-center gap-1 rounded-md border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-2.5 py-1 text-[11px] font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20"
+          >
+            <Plus className="h-3 w-3" />
+            Add All to Setup
+          </button>
+        ))}
       </div>
       {expanded && (
         <div className="mt-1 flex flex-col gap-1.5 pl-6">
-          {[...items]
-            .sort((a, b) => (a.enabled === b.enabled ? 0 : a.enabled ? -1 : 1))
-            .map((item) => (
-              <motion.div
-                key={item.id}
-                layout
-                animate={{ opacity: item.enabled ? 1 : 0.5 }}
-                transition={{
-                  layout: { duration: 0.3, ease: "easeInOut" },
-                  opacity: { duration: 0.3, ease: "easeInOut" },
-                }}
-              >
-                <AgentCard item={item} />
-              </motion.div>
-            ))}
+          {items.map((item) => (
+            <AgentCard key={item.id} item={item} />
+          ))}
         </div>
       )}
     </div>

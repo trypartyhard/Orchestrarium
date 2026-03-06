@@ -22,10 +22,9 @@ function App() {
     // Signal frontend is ready for watcher events
     frontendReady().catch(() => {});
 
-    // Listen for filesystem changes from Rust watcher
+    // Listen for filesystem changes from Rust watcher (silent — no loading spinner)
     const unlisten = listen("fs-changed", () => {
-      const section = useAppStore.getState().activeSection;
-      useAppStore.getState().loadSection(section);
+      useAppStore.getState().silentReload();
     });
 
     return () => {

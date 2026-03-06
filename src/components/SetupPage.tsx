@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Download, Upload, Save, Trash2 } from "lucide-react";
+import { Upload, Save, Trash2 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -13,101 +13,151 @@ export function SetupPage() {
   const agents = useAppStore((s) => s.agents);
   const skills = useAppStore((s) => s.skills);
   const commands = useAppStore((s) => s.commands);
-  const toggleItem = useAppStore((s) => s.toggleItem);
-  const createSetup = useAppStore((s) => s.createSetup);
-  const exportSetup = useAppStore((s) => s.exportSetup);
-  const importSetup = useAppStore((s) => s.importSetup);
   const showToast = useAppStore((s) => s.showToast);
+  const addToSetup = useAppStore((s) => s.addToSetup);
+  const setupIds = useAppStore((s) => s.setupIds);
+  const syncSetupIds = useAppStore((s) => s.syncSetupIds);
+  const removeFromSetup = useAppStore((s) => s.removeFromSetup);
+  const toggleItem = useAppStore((s) => s.toggleItem);
+  const toggleGroup = useAppStore((s) => s.toggleGroup);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState("");
-
-  // Track which item IDs are part of the setup (initially = all enabled)
-  const [setupIds, setSetupIds] = useState<Set<string>>(new Set());
 
   const allItems = useMemo(
     () => [...agents, ...skills, ...commands],
     [agents, skills, commands],
   );
 
-  // Initialize setupIds with currently enabled items on first render
+  // On first load, populate setup with currently enabled items
   useEffect(() => {
-    const enabledIds = allItems.filter((i) => i.enabled).map((i) => i.id);
-    setSetupIds(new Set(enabledIds));
-  }, []);
+    syncSetupIds();
+  }, [allItems]);
 
-  // Setup list is independent — items are NOT auto-added/removed
-  // when toggled from Agents/Skills/Commands sections
-
-  // Items visible in setup list, grouped by type
+  // Items visible in setup list
   const setupItems = allItems.filter((i) => setupIds.has(i.id));
   const agentIds = new Set(agents.map((a) => a.id));
   const skillIds = new Set(skills.map((s) => s.id));
-  const sortEnabledFirst = (a: AgentInfo, b: AgentInfo) =>
-    a.enabled === b.enabled ? 0 : a.enabled ? -1 : 1;
-  const setupAgents = setupItems.filter((i) => agentIds.has(i.id)).sort(sortEnabledFirst);
-  const setupSkills = setupItems.filter((i) => skillIds.has(i.id)).sort(sortEnabledFirst);
-  const setupCommands = setupItems
-    .filter((i) => !agentIds.has(i.id) && !skillIds.has(i.id))
-    .sort(sortEnabledFirst);
+  const setupAgents = setupItems.filter((i) => agentIds.has(i.id));
+  const setupSkills = setupItems.filter((i) => skillIds.has(i.id));
+  const setupCommands = setupItems.filter((i) => !agentIds.has(i.id) && !skillIds.has(i.id));
 
+  // Group agents by their group name for sub-grouping in Setup
+  const agentSubGroups = useMemo(() => {
+    const map = new Map<string, AgentInfo[]>();
+    for (const item of setupAgents) {
+      const group = item.group || "Custom";
+      if (!map.has(group)) map.set(group, []);
+      map.get(group)!.push(item);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === "Custom" && b !== "Custom") return 1;
+      if (b === "Custom" && a !== "Custom") return -1;
+      return a.localeCompare(b);
+    });
+  }, [setupAgents]);
+
+  const skillSubGroups = useMemo(() => {
+    const map = new Map<string, AgentInfo[]>();
+    for (const item of setupSkills) {
+      const group = item.group || "Custom";
+      if (!map.has(group)) map.set(group, []);
+      map.get(group)!.push(item);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === "Custom" && b !== "Custom") return 1;
+      if (b === "Custom" && a !== "Custom") return -1;
+      return a.localeCompare(b);
+    });
+  }, [setupSkills]);
+
+  const commandSubGroups = useMemo(() => {
+    const map = new Map<string, AgentInfo[]>();
+    for (const item of setupCommands) {
+      const group = item.group || "Custom";
+      if (!map.has(group)) map.set(group, []);
+      map.get(group)!.push(item);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      if (a === "Custom" && b !== "Custom") return 1;
+      if (b === "Custom" && a !== "Custom") return -1;
+      return a.localeCompare(b);
+    });
+  }, [setupCommands]);
+
+  // Stats reflect actual disk state (not setup virtual state)
   const stats = {
     agents: { enabled: agents.filter((a) => a.enabled).length, total: agents.length },
     skills: { enabled: skills.filter((s) => s.enabled).length, total: skills.length },
     commands: { enabled: commands.filter((c) => c.enabled).length, total: commands.length },
   };
 
-  const handleExport = async () => {
-    const name = `snapshot-${Date.now()}`;
-    await createSetup(name);
-    const json = await exportSetup(name);
-    if (!json) return;
-
-    const path = await save({
-      defaultPath: "setup.json",
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (path) {
-      try {
-        await writeTextFile(path, json);
-      } catch {
-        showToast("Failed to write file");
-      }
-    }
-  };
-
-  const handleImport = async () => {
-    const path = await open({
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (path) {
-      try {
-        const content = await readTextFile(path);
-        await importSetup(content);
-      } catch {
-        showToast("Failed to read file");
-      }
-    }
-  };
-
   const handleSave = async () => {
     if (!saveName.trim()) return;
-    await createSetup(saveName.trim());
+    // Build setup JSON from current setupIds + disk state
+    const entries = setupItems.map((i) => ({ id: i.id, enabled: i.enabled }));
+    const data = {
+      name: saveName.trim(),
+      created_at: new Date().toISOString(),
+      entries,
+    };
+    const json = JSON.stringify(data, null, 2);
+
+    const filePath = await save({
+      defaultPath: `${saveName.trim()}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (filePath) {
+      try {
+        await writeTextFile(filePath, json);
+        showToast(`Setup "${saveName.trim()}" saved`);
+      } catch {
+        showToast("Failed to save file");
+      }
+    }
     setSaveName("");
     setShowSaveModal(false);
   };
 
-  const handleRemoveFromSetup = async (item: AgentInfo) => {
-    // Remove from setup list
-    setSetupIds((prev) => {
-      const next = new Set(prev);
-      next.delete(item.id);
-      return next;
+  const handleImport = async () => {
+    const filePath = await open({
+      filters: [{ name: "JSON", extensions: ["json"] }],
     });
-    // Disable if currently enabled
-    if (item.enabled) {
-      await toggleItem(item);
+    if (!filePath) return;
+    try {
+      const content = await readTextFile(filePath);
+      const data = JSON.parse(content) as { entries: { id: string; enabled: boolean }[] };
+      if (!data.entries?.length) {
+        showToast("Invalid setup file");
+        return;
+      }
+      // Add all entries to setupIds
+      for (const entry of data.entries) {
+        addToSetup(entry.id);
+      }
+      // Apply enabled/disabled state to disk
+      const itemMap = new Map(allItems.map((i) => [i.id, i]));
+      for (const entry of data.entries) {
+        const item = itemMap.get(entry.id);
+        if (item && item.enabled !== entry.enabled) {
+          await toggleItem(item);
+        }
+      }
+      showToast("Setup imported");
+    } catch {
+      showToast("Failed to import setup");
     }
+  };
+
+  const handleRemoveFromSetup = async (item: AgentInfo) => {
+    if (item.enabled) await toggleItem(item);
+    removeFromSetup(item.id);
+  };
+
+  const handleRemoveGroupFromSetup = async (items: AgentInfo[]) => {
+    const enabled = items.filter((i) => i.enabled);
+    if (enabled.length > 0) await toggleGroup(enabled, false);
+    items.forEach((i) => removeFromSetup(i.id));
   };
 
   const btnClass =
@@ -124,17 +174,13 @@ export function SetupPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport} className={btnClass}>
-            <Download className="h-3.5 w-3.5" />
-            Export Setup
+          <button onClick={() => setShowSaveModal(true)} className={btnClass}>
+            <Save className="h-3.5 w-3.5" />
+            Save Setup
           </button>
           <button onClick={handleImport} className={btnClass}>
             <Upload className="h-3.5 w-3.5" />
-            Import Setup
-          </button>
-          <button onClick={() => setShowSaveModal(true)} className={btnClass}>
-            <Save className="h-3.5 w-3.5" />
-            Save
+            Load Setup
           </button>
         </div>
       </div>
@@ -163,57 +209,88 @@ export function SetupPage() {
 
       {/* Setup items list grouped by type */}
       {setupItems.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center text-sm text-[#56565f]">
-          No items in setup
+        <div className="flex flex-1 flex-col items-center justify-center gap-2">
+          <span className="text-sm text-[#56565f]">No items in setup</span>
+          <span className="text-xs text-[#44444d]">
+            Go to Agents, Skills, or Commands and click "Add to Setup"
+          </span>
         </div>
       ) : (
         <LayoutGroup>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {([
-              { label: "Agents", items: setupAgents, color: "#4fc3f7" },
-              { label: "Skills", items: setupSkills, color: "#66bb6a" },
-              { label: "Commands", items: setupCommands, color: "#ffa726" },
-            ] as const).filter((g) => g.items.length > 0).map((group) => (
-              <div key={group.label} className="flex flex-col gap-1.5">
+              { label: "Agents", subGroups: agentSubGroups, color: "#4fc3f7" },
+              { label: "Skills", subGroups: skillSubGroups, color: "#66bb6a" },
+              { label: "Commands", subGroups: commandSubGroups, color: "#ffa726" },
+            ] as const).filter((g) => g.subGroups.length > 0).map((section) => (
+              <div key={section.label} className="flex flex-col gap-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-[#56565f]">
-                  {group.label}
+                  {section.label}
                 </h3>
-                <AnimatePresence>
-                  {group.items.map((item) => (
-                    <motion.div
-                      key={item.id}
-                      layout
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: item.enabled ? 1 : 0.5, y: 0 }}
-                      exit={{ opacity: 0, x: -20 }}
-                      transition={{ duration: 0.3, ease: "easeInOut" }}
-                      className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#27272c] px-3 py-2.5 hover:bg-[#313138]"
-                    >
-                      <ColorDot color={item.color} />
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-medium text-[#dddde4]">
-                          {item.name}
-                        </span>
-                        {item.description && (
-                          <p className="truncate text-xs text-[#56565f]">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                      <Toggle
-                        enabled={item.enabled}
-                        onToggle={() => toggleItem(item)}
-                      />
-                      <button
-                        onClick={() => handleRemoveFromSetup(item)}
-                        title="Remove from setup"
-                        className="flex h-7 w-7 items-center justify-center rounded-md text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                {section.subGroups.map(([groupName, groupItems]) => {
+                  const allEnabled = groupItems.every((i) => i.enabled);
+                  return (
+                  <div key={groupName} className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="ml-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: section.color }}>
+                        {groupName}
+                      </span>
+                      <span className="text-[11px] text-[#56565f]">({groupItems.length})</span>
+                      {groupItems.length > 1 && (
+                        <>
+                          <Toggle
+                            enabled={allEnabled}
+                            onToggle={() => toggleGroup(groupItems, !allEnabled)}
+                          />
+                          <button
+                            onClick={() => handleRemoveGroupFromSetup(groupItems)}
+                            title="Remove all from setup"
+                            className="flex h-5 w-5 items-center justify-center rounded-md text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <AnimatePresence>
+                      {groupItems.map((item) => (
+                        <motion.div
+                          key={item.id}
+                          layout
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#27272c] px-3 py-2.5 hover:bg-[#313138]"
+                        >
+                          <ColorDot color={item.color} />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-medium text-[#dddde4]">
+                              {item.name}
+                            </span>
+                            {item.description && (
+                              <p className="truncate text-xs text-[#56565f]">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                          <Toggle
+                            enabled={item.enabled}
+                            onToggle={() => toggleItem(item)}
+                          />
+                          <button
+                            onClick={() => handleRemoveFromSetup(item)}
+                            title="Remove from setup"
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                  );
+                })}
               </div>
             ))}
           </div>

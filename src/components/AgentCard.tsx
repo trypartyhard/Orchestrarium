@@ -1,6 +1,6 @@
+import { Plus, Check } from "lucide-react";
 import type { AgentInfo } from "../bindings";
 import { useAppStore } from "../lib/store";
-import { Toggle } from "./Toggle";
 import { ColorDot } from "./ColorDot";
 import { Badge } from "./Badge";
 
@@ -9,7 +9,9 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ item }: AgentCardProps) {
-  const toggleItem = useAppStore((s) => s.toggleItem);
+  const setupIds = useAppStore((s) => s.setupIds);
+  const addToSetup = useAppStore((s) => s.addToSetup);
+  const inSetup = setupIds.has(item.id);
 
   return (
     <div
@@ -31,7 +33,20 @@ export function AgentCard({ item }: AgentCardProps) {
           <p className="truncate text-xs text-[#56565f]">{item.description}</p>
         )}
       </div>
-      <Toggle enabled={item.enabled} onToggle={() => toggleItem(item)} />
+      {inSetup ? (
+        <span className="flex items-center gap-1.5 rounded-lg border border-[#00d4aa]/30 bg-[#00d4aa]/10 px-3 py-1.5 text-xs font-medium text-[#00d4aa]">
+          <Check className="h-3 w-3" />
+          In Setup
+        </span>
+      ) : (
+        <button
+          onClick={() => addToSetup(item.id)}
+          className="flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-3 py-1.5 text-xs font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20"
+        >
+          <Plus className="h-3 w-3" />
+          Add to Setup
+        </button>
+      )}
     </div>
   );
 }

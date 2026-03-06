@@ -35,8 +35,11 @@ interface AppStore {
   toast: ToastState;
   setups: Setup[];
   activeSetup: string | null;
+  setupIds: Set<string>;
+  setupIdsInitialized: boolean;
 
   loadSection: (section: Section) => Promise<void>;
+  silentReload: (section?: Section) => Promise<void>;
   toggleItem: (item: AgentInfo) => Promise<void>;
   toggleGroup: (items: AgentInfo[], enable: boolean) => Promise<void>;
   setActiveSection: (section: Section) => void;
@@ -44,6 +47,9 @@ interface AppStore {
   setFilter: (filter: Filter) => void;
   showToast: (message: string) => void;
   hideToast: () => void;
+  syncSetupIds: () => void;
+  addToSetup: (id: string) => void;
+  removeFromSetup: (id: string) => void;
   loadSetups: () => Promise<void>;
   createSetup: (name: string) => Promise<void>;
   deleteSetup: (name: string) => Promise<void>;
@@ -58,6 +64,20 @@ const sectionLoaders = {
   commands: getCommands,
 } as const;
 
+const SETUP_IDS_KEY = "cam-setup-ids";
+
+function loadPersistedSetupIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(SETUP_IDS_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return new Set<string>();
+}
+
+function persistSetupIds(ids: Set<string>) {
+  localStorage.setItem(SETUP_IDS_KEY, JSON.stringify([...ids]));
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   agents: [],
   skills: [],
@@ -69,6 +89,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   toast: { message: "", visible: false },
   setups: [],
   activeSetup: null,
+  setupIds: new Set<string>(),
+  setupIdsInitialized: false,
 
   loadSection: async (section) => {
     set({ loading: true });
@@ -91,6 +113,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  silentReload: async (section?) => {
+    try {
+      const target = section ?? get().activeSection;
+      if (target === "setup") {
+        const [agents, skills, commands] = await Promise.all([
+          getAgents(),
+          getSkills(),
+          getCommands(),
+        ]);
+        set({ agents, skills, commands });
+      } else {
+        const data = await sectionLoaders[target as ItemSection]();
+        set({ [target]: data } as Partial<AppStore>);
+      }
+    } catch {
+      // silent — no toast
+    }
+  },
+
   toggleItem: async (item) => {
     const section = item.section as "agents" | "skills" | "commands";
     const newEnabled = !item.enabled;
@@ -107,9 +148,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       await toggleItemIPC(item.path, newEnabled, item.section);
-      // Silent reload to get accurate paths (no loading spinner)
-      const data = await sectionLoaders[section]();
-      set({ [section]: data } as Partial<AppStore>);
+      await get().silentReload(section);
     } catch {
       // Revert
       set(
@@ -139,7 +178,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }) as Partial<AppStore>,
     );
 
-    // Toggle each sequentially
     const failed: AgentInfo[] = [];
     for (const item of items) {
       if (item.enabled === enable) continue;
@@ -150,9 +188,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    // Silent reload for accurate state (no loading spinner)
-    const data = await sectionLoaders[section]();
-    set({ [section]: data } as Partial<AppStore>);
+    await get().silentReload(section);
 
     if (failed.length > 0) {
       get().showToast(
@@ -164,6 +200,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setActiveSection: (section) => set({ activeSection: section }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilter: (filter) => set({ filter }),
+
+  syncSetupIds: () => {
+    if (get().setupIdsInitialized) return;
+    const all = [...get().agents, ...get().skills, ...get().commands];
+    if (all.length === 0) return;
+    const persisted = loadPersistedSetupIds();
+    // Use persisted if available, otherwise seed from enabled items
+    const ids = persisted.size > 0 ? persisted : new Set(all.filter((i) => i.enabled).map((i) => i.id));
+    persistSetupIds(ids);
+    set({ setupIds: ids, setupIdsInitialized: true });
+  },
+
+  addToSetup: (id) => {
+    set((state) => {
+      const next = new Set(state.setupIds);
+      next.add(id);
+      persistSetupIds(next);
+      return { setupIds: next };
+    });
+  },
+
+  removeFromSetup: (id) => {
+    set((state) => {
+      const next = new Set(state.setupIds);
+      next.delete(id);
+      persistSetupIds(next);
+      return { setupIds: next };
+    });
+  },
 
   showToast: (message) => {
     set({ toast: { message, visible: true } });
