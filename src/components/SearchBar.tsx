@@ -20,14 +20,14 @@ export function SearchBar() {
 
   return (
     <div className="relative flex items-center">
-      <Search className="absolute left-2.5 h-4 w-4 text-[#555577]" />
+      <Search className="absolute left-2.5 h-4 w-4 text-[#6b6b78]" />
       <input
         ref={inputRef}
         type="text"
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         placeholder="Search... (Ctrl+F)"
-        className="h-8 w-64 rounded-md border border-[#2a2a44] bg-[#1a1a2e] pl-8 pr-3 text-sm text-[#d0d0e8] placeholder-[#555577] outline-none focus:border-[#00d4aa]"
+        className="h-8 w-64 rounded-md border border-[#3a3a42] bg-[#27272c] pl-8 pr-3 text-sm text-[#e8e8ec] placeholder-[#6b6b78] outline-none focus:border-[#4fc3f7]"
       />
     </div>
   );

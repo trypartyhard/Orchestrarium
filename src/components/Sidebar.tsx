@@ -1,8 +1,9 @@
-import { Users, Sparkles, Terminal } from "lucide-react";
+import { LayoutDashboard, Bot, Sparkles, Terminal, Settings } from "lucide-react";
 import { useAppStore, type Section } from "../lib/store";
 
-const sections: { key: Section; label: string; icon: typeof Users }[] = [
-  { key: "agents", label: "Agents", icon: Users },
+const sections: { key: Section; label: string; icon: typeof Bot }[] = [
+  { key: "setup", label: "Setup", icon: LayoutDashboard },
+  { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
   { key: "commands", label: "Commands", icon: Terminal },
 ];
@@ -11,15 +12,6 @@ export function Sidebar() {
   const activeSection = useAppStore((s) => s.activeSection);
   const setActiveSection = useAppStore((s) => s.setActiveSection);
   const loadSection = useAppStore((s) => s.loadSection);
-  const agents = useAppStore((s) => s.agents);
-  const skills = useAppStore((s) => s.skills);
-  const commands = useAppStore((s) => s.commands);
-
-  const counts: Record<Section, number> = {
-    agents: agents.length,
-    skills: skills.length,
-    commands: commands.length,
-  };
 
   const handleClick = (section: Section) => {
     setActiveSection(section);
@@ -27,34 +19,50 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-full w-[200px] shrink-0 flex-col border-r border-[#2a2a44] bg-[#1a1a2e]">
-      <div className="flex h-12 items-center px-4">
-        <span className="text-sm font-bold tracking-wider text-[#00d4aa]">
-          CAM
-        </span>
-      </div>
-      <nav className="flex flex-1 flex-col gap-0.5 px-2 py-2">
+    <aside className="flex h-full w-16 shrink-0 flex-col items-center bg-[#1e1e23]">
+      <nav className="flex flex-1 flex-col items-center gap-[14px] pt-5">
         {sections.map(({ key, label, icon: Icon }) => {
           const isActive = activeSection === key;
           return (
             <button
               key={key}
               onClick={() => handleClick(key)}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                isActive
-                  ? "border-l-2 border-[#00d4aa] bg-[#22223a] text-[#d0d0e8]"
-                  : "border-l-2 border-transparent text-[#555577] hover:bg-[#22223a] hover:text-[#8888aa]"
-              }`}
+              title={label}
+              className="group relative flex h-10 w-10 items-center justify-center"
             >
-              <Icon className="h-4 w-4" />
-              <span className="flex-1 text-left">{label}</span>
-              {counts[key] > 0 && (
-                <span className="text-xs text-[#555577]">{counts[key]}</span>
+              {isActive && (
+                <span className="absolute left-[-12px] top-[6px] h-7 w-[3px] rounded-r-[1.5px] bg-[#4fc3f7]" />
               )}
+              <span
+                className={`flex h-10 w-10 items-center justify-center rounded-[10px] transition-colors ${
+                  isActive
+                    ? "bg-[#2a2a32] ring-[1.5px] ring-[#4fc3f7]/50"
+                    : "text-[#6b6b78] hover:bg-[#2a2a32] hover:text-[#8a8a96]"
+                }`}
+              >
+                <Icon
+                  className="h-[18px] w-[18px]"
+                  style={isActive ? { color: "#4fc3f7" } : undefined}
+                />
+              </span>
+              <span className="pointer-events-none absolute left-14 z-50 hidden whitespace-nowrap rounded bg-[#3a3a42] px-2 py-1 text-xs text-[#e8e8ec] shadow-lg group-hover:block">
+                {label}
+              </span>
             </button>
           );
         })}
       </nav>
+      <div className="pb-5">
+        <button
+          title="Settings"
+          className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#8a8a96]"
+        >
+          <Settings className="h-[18px] w-[18px]" />
+          <span className="pointer-events-none absolute left-14 z-50 hidden whitespace-nowrap rounded bg-[#3a3a42] px-2 py-1 text-xs text-[#e8e8ec] shadow-lg group-hover:block">
+            Settings
+          </span>
+        </button>
+      </div>
     </aside>
   );
 }

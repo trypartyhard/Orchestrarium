@@ -1,14 +1,14 @@
 import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import type { AgentInfo } from "../bindings";
-import { useAppStore, type Section } from "../lib/store";
+import { useAppStore, type ItemSection } from "../lib/store";
 import { AgentGroup } from "./AgentGroup";
 import { EmptyState } from "./EmptyState";
 
 export function AgentList() {
   const activeSection = useAppStore((s) => s.activeSection);
   const items: AgentInfo[] = useAppStore(
-    (s) => s[activeSection as Section],
+    (s) => s[activeSection as ItemSection] ?? [],
   );
   const searchQuery = useAppStore((s) => s.searchQuery);
   const filter = useAppStore((s) => s.filter);

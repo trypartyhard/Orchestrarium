@@ -13,5 +13,6 @@ pub struct AgentInfo {
     pub path: String,
     pub section: String,
     pub group: String,
+    pub scope: String,
     pub invalid_config: bool,
 }

@@ -7,22 +7,22 @@ use crate::parser;
 /// Scan a section directory for .md files.
 /// Looks in `{base_dir}/{section}/` for enabled files
 /// and `{base_dir}/{section}/.disabled/` for disabled files.
-pub fn scan_section(base_dir: &Path, section: &str) -> Vec<AgentInfo> {
+pub fn scan_section(base_dir: &Path, section: &str, scope: &str) -> Vec<AgentInfo> {
     let mut agents = Vec::new();
     let section_dir = base_dir.join(section);
 
     // Scan enabled files
-    scan_dir(&section_dir, section, true, &mut agents);
+    scan_dir(&section_dir, section, true, scope, &mut agents);
 
     // Scan disabled files
     let disabled_dir = section_dir.join(".disabled");
-    scan_dir(&disabled_dir, section, false, &mut agents);
+    scan_dir(&disabled_dir, section, false, scope, &mut agents);
 
     groups::assign_groups(&mut agents);
     agents
 }
 
-fn scan_dir(dir: &Path, section: &str, enabled: bool, agents: &mut Vec<AgentInfo>) {
+fn scan_dir(dir: &Path, section: &str, enabled: bool, scope: &str, agents: &mut Vec<AgentInfo>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -33,7 +33,7 @@ fn scan_dir(dir: &Path, section: &str, enabled: bool, agents: &mut Vec<AgentInfo
         if path.is_file() {
             if let Some(ext) = path.extension() {
                 if ext == "md" {
-                    let agent = parser::parse_agent_file(&path, section, enabled);
+                    let agent = parser::parse_agent_file(&path, section, enabled, scope);
                     agents.push(agent);
                 }
             }
@@ -42,10 +42,10 @@ fn scan_dir(dir: &Path, section: &str, enabled: bool, agents: &mut Vec<AgentInfo
 }
 
 /// Scan all three sections.
-pub fn scan_all(base_dir: &Path) -> (Vec<AgentInfo>, Vec<AgentInfo>, Vec<AgentInfo>) {
-    let agents = scan_section(base_dir, "agents");
-    let skills = scan_section(base_dir, "skills");
-    let commands = scan_section(base_dir, "commands");
+pub fn scan_all(base_dir: &Path, scope: &str) -> (Vec<AgentInfo>, Vec<AgentInfo>, Vec<AgentInfo>) {
+    let agents = scan_section(base_dir, "agents", scope);
+    let skills = scan_section(base_dir, "skills", scope);
+    let commands = scan_section(base_dir, "commands", scope);
     (agents, skills, commands)
 }
 
@@ -82,9 +82,10 @@ mod tests {
                 ("agent2.md", "---\nname: Agent 2\n---\n"),
             ],
         );
-        let result = scan_section(tmp.path(), "agents");
+        let result = scan_section(tmp.path(), "agents", "global");
         assert_eq!(result.len(), 2);
         assert!(result.iter().all(|a| a.enabled));
+        assert!(result.iter().all(|a| a.scope == "global"));
     }
 
     #[test]
@@ -96,7 +97,7 @@ mod tests {
             "agents",
             &[("disabled.md", "---\nname: Disabled\n---\n")],
         );
-        let result = scan_section(tmp.path(), "agents");
+        let result = scan_section(tmp.path(), "agents", "global");
         assert_eq!(result.len(), 2);
         let enabled: Vec<_> = result.iter().filter(|a| a.enabled).collect();
         let disabled: Vec<_> = result.iter().filter(|a| !a.enabled).collect();
@@ -112,14 +113,14 @@ mod tests {
         fs::write(dir.join("agent.md"), "---\nname: Agent\n---\n").unwrap();
         fs::write(dir.join("readme.txt"), "not an agent").unwrap();
         fs::write(dir.join("config.json"), "{}").unwrap();
-        let result = scan_section(tmp.path(), "agents");
+        let result = scan_section(tmp.path(), "agents", "global");
         assert_eq!(result.len(), 1);
     }
 
     #[test]
     fn test_scan_missing_directory() {
         let tmp = TempDir::new().unwrap();
-        let result = scan_section(tmp.path(), "nonexistent");
+        let result = scan_section(tmp.path(), "nonexistent", "global");
         assert!(result.is_empty());
     }
 
@@ -136,7 +137,7 @@ mod tests {
             ],
         );
         setup_section(tmp.path(), "commands", &[("c.md", "---\nname: C\n---\n")]);
-        let (agents, skills, commands) = scan_all(tmp.path());
+        let (agents, skills, commands) = scan_all(tmp.path(), "global");
         assert_eq!(agents.len(), 1);
         assert_eq!(skills.len(), 2);
         assert_eq!(commands.len(), 1);

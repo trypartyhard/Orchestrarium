@@ -3,6 +3,7 @@ mod groups;
 mod models;
 mod parser;
 mod scanner;
+pub mod setups;
 mod state;
 mod toggler;
 mod watcher;
@@ -17,6 +18,13 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::get_commands,
         commands::toggle_item,
         commands::frontend_ready,
+        commands::get_setups,
+        commands::get_active_setup,
+        commands::create_setup,
+        commands::delete_setup,
+        commands::apply_setup,
+        commands::export_setup,
+        commands::import_setup,
     ])
 }
 
@@ -49,6 +57,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

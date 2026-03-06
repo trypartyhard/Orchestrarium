@@ -1,13 +1,22 @@
 import { create } from "zustand";
 import {
   type AgentInfo,
+  type Setup,
   getAgents,
   getSkills,
   getCommands,
   toggleItem as toggleItemIPC,
+  getSetups as getSetupsIPC,
+  getActiveSetup as getActiveSetupIPC,
+  createSetup as createSetupIPC,
+  deleteSetup as deleteSetupIPC,
+  applySetup as applySetupIPC,
+  exportSetup as exportSetupIPC,
+  importSetup as importSetupIPC,
 } from "../bindings";
 
-export type Section = "agents" | "skills" | "commands";
+export type Section = "setup" | "agents" | "skills" | "commands";
+export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
 
 interface ToastState {
@@ -24,6 +33,8 @@ interface AppStore {
   filter: Filter;
   loading: boolean;
   toast: ToastState;
+  setups: Setup[];
+  activeSetup: string | null;
 
   loadSection: (section: Section) => Promise<void>;
   toggleItem: (item: AgentInfo) => Promise<void>;
@@ -33,9 +44,15 @@ interface AppStore {
   setFilter: (filter: Filter) => void;
   showToast: (message: string) => void;
   hideToast: () => void;
+  loadSetups: () => Promise<void>;
+  createSetup: (name: string) => Promise<void>;
+  deleteSetup: (name: string) => Promise<void>;
+  applySetup: (name: string) => Promise<void>;
+  exportSetup: (name: string) => Promise<string>;
+  importSetup: (json: string) => Promise<void>;
 }
 
-const loaders = {
+const sectionLoaders = {
   agents: getAgents,
   skills: getSkills,
   commands: getCommands,
@@ -45,17 +62,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
   agents: [],
   skills: [],
   commands: [],
-  activeSection: "agents",
+  activeSection: "setup",
   searchQuery: "",
   filter: "all",
   loading: false,
   toast: { message: "", visible: false },
+  setups: [],
+  activeSetup: null,
 
   loadSection: async (section) => {
     set({ loading: true });
     try {
-      const data = await loaders[section]();
-      set({ [section]: data, loading: false } as Partial<AppStore>);
+      if (section === "setup") {
+        // Load all three sections for the dashboard
+        const [agents, skills, commands] = await Promise.all([
+          getAgents(),
+          getSkills(),
+          getCommands(),
+        ]);
+        set({ agents, skills, commands, loading: false });
+      } else {
+        const data = await sectionLoaders[section]();
+        set({ [section]: data, loading: false } as Partial<AppStore>);
+      }
     } catch {
       set({ loading: false });
       get().showToast(`Failed to load ${section}`);
@@ -63,7 +92,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   toggleItem: async (item) => {
-    const section = item.section as Section;
+    const section = item.section as "agents" | "skills" | "commands";
     const newEnabled = !item.enabled;
 
     // Optimistic update
@@ -78,8 +107,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     try {
       await toggleItemIPC(item.path, newEnabled, item.section);
-      // Reload to get accurate paths
-      await get().loadSection(section);
+      // Silent reload to get accurate paths (no loading spinner)
+      const data = await sectionLoaders[section]();
+      set({ [section]: data } as Partial<AppStore>);
     } catch {
       // Revert
       set(
@@ -95,7 +125,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   toggleGroup: async (items, enable) => {
-    const section = items[0]?.section as Section;
+    const section = items[0]?.section as "agents" | "skills" | "commands";
     if (!section) return;
 
     // Optimistic update all
@@ -120,8 +150,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
 
-    // Reload section for accurate state
-    await get().loadSection(section);
+    // Silent reload for accurate state (no loading spinner)
+    const data = await sectionLoaders[section]();
+    set({ [section]: data } as Partial<AppStore>);
 
     if (failed.length > 0) {
       get().showToast(
@@ -139,4 +170,71 @@ export const useAppStore = create<AppStore>((set, get) => ({
     setTimeout(() => get().hideToast(), 4000);
   },
   hideToast: () => set({ toast: { message: "", visible: false } }),
+
+  loadSetups: async () => {
+    try {
+      const [setups, activeSetup] = await Promise.all([
+        getSetupsIPC(),
+        getActiveSetupIPC(),
+      ]);
+      set({ setups, activeSetup });
+    } catch {
+      get().showToast("Failed to load setups");
+    }
+  },
+
+  createSetup: async (name) => {
+    try {
+      await createSetupIPC(name);
+      await get().loadSetups();
+    } catch {
+      get().showToast("Failed to create setup");
+    }
+  },
+
+  deleteSetup: async (name) => {
+    try {
+      await deleteSetupIPC(name);
+      await get().loadSetups();
+    } catch {
+      get().showToast("Failed to delete setup");
+    }
+  },
+
+  applySetup: async (name) => {
+    try {
+      const failures = await applySetupIPC(name);
+      await get().loadSetups();
+      // Reload all sections
+      const [agents, skills, commands] = await Promise.all([
+        getAgents(),
+        getSkills(),
+        getCommands(),
+      ]);
+      set({ agents, skills, commands });
+      if (failures.length > 0) {
+        get().showToast(`Setup applied with ${failures.length} error(s)`);
+      }
+    } catch {
+      get().showToast("Failed to apply setup");
+    }
+  },
+
+  exportSetup: async (name) => {
+    try {
+      return await exportSetupIPC(name);
+    } catch {
+      get().showToast("Failed to export setup");
+      return "";
+    }
+  },
+
+  importSetup: async (json) => {
+    try {
+      await importSetupIPC(json);
+      await get().loadSetups();
+    } catch {
+      get().showToast("Failed to import setup");
+    }
+  },
 }));

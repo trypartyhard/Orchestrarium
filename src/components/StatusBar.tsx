@@ -1,29 +1,37 @@
-import { useAppStore, type Section } from "../lib/store";
-import type { AgentInfo } from "../bindings";
+import { useAppStore } from "../lib/store";
 
 export function StatusBar() {
   const activeSection = useAppStore((s) => s.activeSection);
-  const items: AgentInfo[] = useAppStore(
-    (s) => s[activeSection as Section],
-  );
+  const agents = useAppStore((s) => s.agents);
+  const skills = useAppStore((s) => s.skills);
+  const commands = useAppStore((s) => s.commands);
+
+  const items =
+    activeSection === "setup"
+      ? [...agents, ...skills, ...commands]
+      : activeSection === "agents"
+        ? agents
+        : activeSection === "skills"
+          ? skills
+          : commands;
 
   const enabledCount = items.filter((i) => i.enabled).length;
   const disabledCount = items.filter((i) => !i.enabled).length;
 
   return (
-    <footer className="flex h-7 shrink-0 items-center justify-between border-t border-[#2a2a44] px-4 text-[11px] text-[#555577]">
-      <span>~/.claude</span>
+    <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#3a3a42] bg-[#232328] px-4 font-mono text-[11px] text-[#56565f]">
+      <span>~/.claude/agents/</span>
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-[#00d4aa]" />
-          {enabledCount} enabled
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#4fc3f7]" />
+          <span className="text-[#6b6b78]">{enabledCount} active</span>
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full bg-[#555577]" />
-          {disabledCount} disabled
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7a7a88]" />
+          <span className="text-[#6b6b78]">{disabledCount} disabled</span>
         </span>
       </div>
-      <span>v0.1.0</span>
+      <span>v0.2.0</span>
     </footer>
   );
 }

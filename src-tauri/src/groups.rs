@@ -66,6 +66,7 @@ mod tests {
             path: String::new(),
             section: "agents".to_string(),
             group: String::new(),
+            scope: "global".to_string(),
             invalid_config: false,
         }
     }

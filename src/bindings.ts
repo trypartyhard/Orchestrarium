@@ -15,7 +15,19 @@ export type AgentInfo = {
   path: string;
   section: string;
   group: string;
+  scope: string;
   invalid_config: boolean;
+};
+
+export type SetupEntry = {
+  id: string;
+  enabled: boolean;
+};
+
+export type Setup = {
+  name: string;
+  created_at: string;
+  entries: SetupEntry[];
 };
 
 export async function getAgents(): Promise<AgentInfo[]> {
@@ -40,4 +52,32 @@ export async function toggleItem(
 
 export async function frontendReady(): Promise<void> {
   return await invoke<void>("frontend_ready");
+}
+
+export async function getSetups(): Promise<Setup[]> {
+  return await invoke<Setup[]>("get_setups");
+}
+
+export async function getActiveSetup(): Promise<string | null> {
+  return await invoke<string | null>("get_active_setup");
+}
+
+export async function createSetup(name: string): Promise<Setup> {
+  return await invoke<Setup>("create_setup", { name });
+}
+
+export async function deleteSetup(name: string): Promise<void> {
+  return await invoke<void>("delete_setup", { name });
+}
+
+export async function applySetup(name: string): Promise<string[]> {
+  return await invoke<string[]>("apply_setup", { name });
+}
+
+export async function exportSetup(name: string): Promise<string> {
+  return await invoke<string>("export_setup", { name });
+}
+
+export async function importSetup(json: string): Promise<Setup> {
+  return await invoke<Setup>("import_setup", { json });
 }

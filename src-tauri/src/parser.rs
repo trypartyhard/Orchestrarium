@@ -22,7 +22,7 @@ fn get_field(map: &HashMap<String, Pod>, key: &str) -> Option<Pod> {
     map.get(key).cloned()
 }
 
-pub fn parse_agent_file(path: &Path, section: &str, enabled: bool) -> AgentInfo {
+pub fn parse_agent_file(path: &Path, section: &str, enabled: bool, scope: &str) -> AgentInfo {
     let filename = path
         .file_name()
         .unwrap_or_default()
@@ -43,6 +43,7 @@ pub fn parse_agent_file(path: &Path, section: &str, enabled: bool) -> AgentInfo 
         path: path.to_string_lossy().to_string(),
         section: section.to_string(),
         group: String::new(),
+        scope: scope.to_string(),
         invalid_config: invalid,
     };
 
@@ -83,6 +84,7 @@ pub fn parse_agent_file(path: &Path, section: &str, enabled: bool) -> AgentInfo 
         path: path.to_string_lossy().to_string(),
         section: section.to_string(),
         group: String::new(),
+        scope: scope.to_string(),
         invalid_config: false,
     }
 }
@@ -107,7 +109,7 @@ mod tests {
             "test-agent.md",
             "---\nname: Test Agent\ndescription: A test agent\ncolor: \"#ff0000\"\nmodel: opus\ntools: Read, Write\n---\nBody content",
         );
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(info.name, "Test Agent");
         assert_eq!(info.description.as_deref(), Some("A test agent"));
         assert_eq!(info.color.as_deref(), Some("#ff0000"));
@@ -115,13 +117,14 @@ mod tests {
         assert_eq!(info.tools, Some(vec!["Read".to_string(), "Write".to_string()]));
         assert!(info.enabled);
         assert!(!info.invalid_config);
+        assert_eq!(info.scope, "global");
     }
 
     #[test]
     fn test_missing_fields_returns_defaults() {
         let dir = TempDir::new().unwrap();
         let path = write_file(&dir, "my-agent.md", "---\nname: Just Name\n---\n");
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(info.name, "Just Name");
         assert!(info.description.is_none());
         assert!(info.color.is_none());
@@ -134,7 +137,7 @@ mod tests {
     fn test_no_frontmatter_fallback() {
         let dir = TempDir::new().unwrap();
         let path = write_file(&dir, "bare.md", "No frontmatter here, just text.");
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(info.name, "bare");
         assert!(!info.invalid_config); // gray_matter returns empty data, not an error
     }
@@ -143,11 +146,12 @@ mod tests {
     fn test_malformed_yaml_no_panic() {
         let dir = TempDir::new().unwrap();
         let path = write_file(&dir, "bad.md", "---\nname: \"unclosed\n  broken: [yaml\n---\n");
-        let info = parse_agent_file(&path, "skills", false);
+        let info = parse_agent_file(&path, "skills", false, "project");
         // Should not panic, name falls back to filename stem
         assert_eq!(info.name, "bad");
         assert_eq!(info.section, "skills");
         assert!(!info.enabled);
+        assert_eq!(info.scope, "project");
     }
 
     #[test]
@@ -158,7 +162,7 @@ mod tests {
             "arr.md",
             "---\ntools:\n  - Read\n  - Write\n  - Bash\n---\n",
         );
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(
             info.tools,
             Some(vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()])
@@ -169,7 +173,7 @@ mod tests {
     fn test_tools_as_string() {
         let dir = TempDir::new().unwrap();
         let path = write_file(&dir, "str.md", "---\ntools: Read, Write\n---\n");
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(
             info.tools,
             Some(vec!["Read".to_string(), "Write".to_string()])
@@ -184,7 +188,7 @@ mod tests {
             "colon.md",
             "---\ndescription: \"Do X: then Y: finally Z\"\n---\n",
         );
-        let info = parse_agent_file(&path, "agents", true);
+        let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(
             info.description.as_deref(),
             Some("Do X: then Y: finally Z")
@@ -195,7 +199,7 @@ mod tests {
     fn test_id_format() {
         let dir = TempDir::new().unwrap();
         let path = write_file(&dir, "my-agent.md", "---\nname: Test\n---\n");
-        let info = parse_agent_file(&path, "commands", true);
+        let info = parse_agent_file(&path, "commands", true, "global");
         assert_eq!(info.id, "commands/my-agent.md");
         assert_eq!(info.section, "commands");
     }
@@ -203,7 +207,7 @@ mod tests {
     #[test]
     fn test_nonexistent_file() {
         let path = Path::new("/tmp/does-not-exist-12345.md");
-        let info = parse_agent_file(path, "agents", true);
+        let info = parse_agent_file(path, "agents", true, "global");
         assert!(info.invalid_config);
         assert_eq!(info.name, "does-not-exist-12345");
     }

@@ -25,8 +25,8 @@ export function FilterPills({ counts }: FilterPillsProps) {
             onClick={() => setFilter(key)}
             className={`rounded-full px-3 py-1 text-xs transition-colors ${
               isActive
-                ? "bg-[#00d4aa]/20 text-[#00d4aa]"
-                : "text-[#555577] hover:text-[#8888aa]"
+                ? "bg-[#4fc3f7]/20 text-[#4fc3f7]"
+                : "text-[#6b6b78] hover:text-[#8a8a96]"
             }`}
           >
             {label} ({count})
