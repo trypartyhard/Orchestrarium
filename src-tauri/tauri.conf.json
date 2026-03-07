@@ -1,7 +1,7 @@
 {
-  "productName": "Claude Agent Manager",
+  "productName": "Orchestrarium",
   "version": "0.2.0",
-  "identifier": "com.cam.app",
+  "identifier": "com.orchestrarium.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -37,8 +37,8 @@
         "displayLanguageSelector": false
       }
     },
-    "publisher": "CAM",
-    "shortDescription": "GUI manager for Claude Code agents, skills, and commands"
+    "publisher": "Orchestrarium",
+    "shortDescription": "Agent & Skill Orchestration for Claude Code"
   },
   "plugins": {
     "fs": {

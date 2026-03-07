@@ -1,12 +1,12 @@
 [package]
-name = "claude-agent-manager"
+name = "orchestrarium"
 version = "0.2.0"
-description = "Claude Agent Manager"
+description = "Orchestrarium — Agent & Skill Orchestration for Claude Code"
 authors = ["you"]
 edition = "2021"
 
 [lib]
-name = "cam_lib"
+name = "orchestrarium_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
