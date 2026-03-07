@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   type AgentInfo,
   type Setup,
+  type ClaudeMdProfile,
   getAgents,
   getSkills,
   getCommands,
@@ -15,9 +16,17 @@ import {
   applySetup as applySetupIPC,
   exportSetup as exportSetupIPC,
   importSetup as importSetupIPC,
+  listClaudeProfiles as listClaudeProfilesIPC,
+  createClaudeProfile as createClaudeProfileIPC,
+  activateClaudeProfile as activateClaudeProfileIPC,
+  deactivateClaudeProfile as deactivateClaudeProfileIPC,
+  deleteClaudeProfile as deleteClaudeProfileIPC,
+  readClaudeProfile as readClaudeProfileIPC,
+  saveClaudeProfile as saveClaudeProfileIPC,
+  renameClaudeProfile as renameClaudeProfileIPC,
 } from "../bindings";
 
-export type Section = "setup" | "agents" | "skills" | "commands" | "library";
+export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
 
@@ -39,6 +48,8 @@ interface AppStore {
   activeSetup: string | null;
   setupIds: Set<string>;
   setupIdsInitialized: boolean;
+  advancedFeatures: boolean;
+  claudeProfiles: ClaudeMdProfile[];
 
   loadSection: (section: Section) => Promise<void>;
   silentReload: (section?: Section) => Promise<void>;
@@ -59,6 +70,15 @@ interface AppStore {
   applySetup: (name: string) => Promise<void>;
   exportSetup: (name: string) => Promise<string>;
   importSetup: (json: string) => Promise<void>;
+  setAdvancedFeatures: (enabled: boolean) => void;
+  loadClaudeProfiles: () => Promise<void>;
+  createClaudeProfile: (name: string, fromCurrent: boolean) => Promise<void>;
+  activateClaudeProfile: (name: string) => Promise<void>;
+  deactivateClaudeProfile: () => Promise<void>;
+  deleteClaudeProfile: (name: string) => Promise<void>;
+  readClaudeProfile: (name: string) => Promise<string>;
+  saveClaudeProfile: (name: string, content: string) => Promise<void>;
+  renameClaudeProfile: (oldName: string, newName: string) => Promise<void>;
 }
 
 const sectionLoaders = {
@@ -94,6 +114,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   activeSetup: null,
   setupIds: new Set<string>(),
   setupIdsInitialized: false,
+  advancedFeatures: localStorage.getItem("cam-advanced-features") === "true",
+  claudeProfiles: [],
 
   loadSection: async (section) => {
     set({ loading: true });
@@ -108,6 +130,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ agents, skills, commands, loading: false });
       } else if (section === "library") {
         await get().loadSetups();
+        set({ loading: false });
+      } else if (section === "claude-md") {
+        await get().loadClaudeProfiles();
         set({ loading: false });
       } else {
         const data = await sectionLoaders[section]();
@@ -131,6 +156,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ agents, skills, commands });
       } else if (target === "library") {
         await get().loadSetups();
+      } else if (target === "claude-md") {
+        await get().loadClaudeProfiles();
       } else {
         const data = await sectionLoaders[target as ItemSection]();
         set({ [target]: data } as Partial<AppStore>);
@@ -347,6 +374,87 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadSetups();
     } catch {
       get().showToast("Failed to import setup");
+    }
+  },
+
+  setAdvancedFeatures: (enabled) => {
+    localStorage.setItem("cam-advanced-features", String(enabled));
+    set({ advancedFeatures: enabled });
+    if (!enabled && get().activeSection === "claude-md") {
+      set({ activeSection: "setup" });
+      get().loadSection("setup");
+    }
+  },
+
+  loadClaudeProfiles: async () => {
+    try {
+      const profiles = await listClaudeProfilesIPC();
+      set({ claudeProfiles: profiles });
+    } catch {
+      get().showToast("Failed to load profiles");
+    }
+  },
+
+  createClaudeProfile: async (name, fromCurrent) => {
+    try {
+      await createClaudeProfileIPC(name, fromCurrent);
+      await get().loadClaudeProfiles();
+    } catch (e) {
+      get().showToast(String(e));
+    }
+  },
+
+  activateClaudeProfile: async (name) => {
+    try {
+      await activateClaudeProfileIPC(name);
+      await get().loadClaudeProfiles();
+    } catch {
+      get().showToast("Failed to activate profile");
+    }
+  },
+
+  deactivateClaudeProfile: async () => {
+    try {
+      await deactivateClaudeProfileIPC();
+      await get().loadClaudeProfiles();
+    } catch {
+      get().showToast("Failed to deactivate profile");
+    }
+  },
+
+  deleteClaudeProfile: async (name) => {
+    try {
+      await deleteClaudeProfileIPC(name);
+      await get().loadClaudeProfiles();
+    } catch {
+      get().showToast("Failed to delete profile");
+    }
+  },
+
+  readClaudeProfile: async (name) => {
+    try {
+      return await readClaudeProfileIPC(name);
+    } catch {
+      get().showToast("Failed to read profile");
+      return "";
+    }
+  },
+
+  saveClaudeProfile: async (name, content) => {
+    try {
+      await saveClaudeProfileIPC(name, content);
+      await get().loadClaudeProfiles();
+    } catch {
+      get().showToast("Failed to save profile");
+    }
+  },
+
+  renameClaudeProfile: async (oldName, newName) => {
+    try {
+      await renameClaudeProfileIPC(oldName, newName);
+      await get().loadClaudeProfiles();
+    } catch (e) {
+      get().showToast(String(e));
     }
   },
 }));

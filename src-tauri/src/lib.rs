@@ -1,3 +1,4 @@
+mod claude_md;
 mod commands;
 mod groups;
 mod models;
@@ -27,6 +28,14 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::apply_setup,
         commands::export_setup,
         commands::import_setup,
+        commands::list_claude_profiles,
+        commands::create_claude_profile,
+        commands::activate_claude_profile,
+        commands::deactivate_claude_profile,
+        commands::delete_claude_profile,
+        commands::read_claude_profile,
+        commands::save_claude_profile,
+        commands::rename_claude_profile,
     ])
 }
 

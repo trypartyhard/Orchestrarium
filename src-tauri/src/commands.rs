@@ -2,6 +2,7 @@ use std::sync::atomic::Ordering;
 
 use tauri::State;
 
+use crate::claude_md;
 use crate::models::{AgentInfo, ToggleBatchItem};
 use crate::scanner;
 use crate::state::AppState;
@@ -241,4 +242,54 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
     crate::setups::save_setups(&file)?;
 
     Ok(setup)
+}
+
+// ─── CLAUDE.md profile commands ─────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_claude_profiles() -> Result<Vec<claude_md::ClaudeMdProfile>, String> {
+    claude_md::list_profiles()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn create_claude_profile(name: String, from_current: bool) -> Result<(), String> {
+    claude_md::create_profile(&name, from_current)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn activate_claude_profile(name: String) -> Result<(), String> {
+    claude_md::activate_profile(&name)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn deactivate_claude_profile() -> Result<(), String> {
+    claude_md::deactivate_profile()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_claude_profile(name: String) -> Result<(), String> {
+    claude_md::delete_profile(&name)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_claude_profile(name: String) -> Result<String, String> {
+    claude_md::read_profile(&name)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_claude_profile(name: String, content: String) -> Result<(), String> {
+    claude_md::save_profile(&name, &content)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_claude_profile(old_name: String, new_name: String) -> Result<(), String> {
+    claude_md::rename_profile(&old_name, &new_name)
 }

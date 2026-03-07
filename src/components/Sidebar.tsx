@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { LayoutDashboard, Bot, Sparkles, Terminal, Library, BookOpen } from "lucide-react";
+import { LayoutDashboard, Bot, Sparkles, Terminal, Library, FileText, Settings, BookOpen } from "lucide-react";
 import { useAppStore, type Section } from "../lib/store";
 import { TutorialModal } from "./TutorialModal";
+import { SettingsModal } from "./SettingsModal";
 
-const sections: { key: Section; label: string; icon: typeof Bot }[] = [
+const baseSections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "setup", label: "Setup", icon: LayoutDashboard },
   { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
@@ -15,7 +16,13 @@ export function Sidebar() {
   const activeSection = useAppStore((s) => s.activeSection);
   const setActiveSection = useAppStore((s) => s.setActiveSection);
   const loadSection = useAppStore((s) => s.loadSection);
+  const advancedFeatures = useAppStore((s) => s.advancedFeatures);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const sections = advancedFeatures
+    ? [...baseSections, { key: "claude-md" as Section, label: "CLAUDE.md", icon: FileText }]
+    : baseSections;
 
   const handleClick = (section: Section) => {
     setActiveSection(section);
@@ -56,7 +63,7 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="pb-5">
+      <div className="flex flex-col items-center gap-2 pb-5">
         <button
           onClick={() => setShowTutorial(true)}
           title="Tutorial"
@@ -67,8 +74,19 @@ export function Sidebar() {
             Tutorial
           </span>
         </button>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="Settings"
+          className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#8a8a96]"
+        >
+          <Settings className="h-[18px] w-[18px]" />
+          <span className="pointer-events-none absolute left-14 z-50 hidden whitespace-nowrap rounded bg-[#3a3a42] px-2 py-1 text-xs text-[#e8e8ec] shadow-lg group-hover:block">
+            Settings
+          </span>
+        </button>
       </div>
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </aside>
   );
 }

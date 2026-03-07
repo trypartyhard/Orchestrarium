@@ -96,3 +96,43 @@ export async function exportSetup(name: string): Promise<string> {
 export async function importSetup(json: string): Promise<Setup> {
   return await invoke<Setup>("import_setup", { json });
 }
+
+// ─── CLAUDE.md profile bindings ─────────────────────────────────
+
+export type ClaudeMdProfile = {
+  name: string;
+  active: boolean;
+  size_bytes: number;
+};
+
+export async function listClaudeProfiles(): Promise<ClaudeMdProfile[]> {
+  return await invoke<ClaudeMdProfile[]>("list_claude_profiles");
+}
+
+export async function createClaudeProfile(name: string, fromCurrent: boolean): Promise<void> {
+  return await invoke<void>("create_claude_profile", { name, fromCurrent });
+}
+
+export async function activateClaudeProfile(name: string): Promise<void> {
+  return await invoke<void>("activate_claude_profile", { name });
+}
+
+export async function deactivateClaudeProfile(): Promise<void> {
+  return await invoke<void>("deactivate_claude_profile");
+}
+
+export async function deleteClaudeProfile(name: string): Promise<void> {
+  return await invoke<void>("delete_claude_profile", { name });
+}
+
+export async function readClaudeProfile(name: string): Promise<string> {
+  return await invoke<string>("read_claude_profile", { name });
+}
+
+export async function saveClaudeProfile(name: string, content: string): Promise<void> {
+  return await invoke<void>("save_claude_profile", { name, content });
+}
+
+export async function renameClaudeProfile(oldName: string, newName: string): Promise<void> {
+  return await invoke<void>("rename_claude_profile", { oldName, newName });
+}
