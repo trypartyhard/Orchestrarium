@@ -1,6 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct ToggleBatchItem {
+    pub path: String,
+    pub enable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AgentInfo {
     pub id: String,
     pub filename: String,

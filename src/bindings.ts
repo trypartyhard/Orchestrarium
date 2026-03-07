@@ -50,6 +50,17 @@ export async function toggleItem(
   return await invoke<AgentInfo>("toggle_item", { path, enable, section });
 }
 
+export type ToggleBatchItem = {
+  path: string;
+  enable: boolean;
+};
+
+export async function toggleBatch(
+  items: ToggleBatchItem[],
+): Promise<string[]> {
+  return await invoke<string[]>("toggle_batch", { items });
+}
+
 export async function frontendReady(): Promise<void> {
   return await invoke<void>("frontend_ready");
 }

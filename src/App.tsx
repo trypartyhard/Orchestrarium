@@ -23,12 +23,17 @@ function App() {
     // Signal frontend is ready for watcher events
     frontendReady().catch(() => {});
 
-    // Listen for filesystem changes from Rust watcher (silent — no loading spinner)
+    // Listen for filesystem changes from Rust watcher (debounced, silent)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const unlisten = listen("fs-changed", () => {
-      useAppStore.getState().silentReload();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        useAppStore.getState().silentReload();
+      }, 300);
     });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unlisten.then((fn) => fn());
     };
   }, []);

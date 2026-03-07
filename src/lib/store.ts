@@ -6,6 +6,7 @@ import {
   getSkills,
   getCommands,
   toggleItem as toggleItemIPC,
+  toggleBatch as toggleBatchIPC,
   getSetups as getSetupsIPC,
   getActiveSetup as getActiveSetupIPC,
   createSetup as createSetupIPC,
@@ -167,6 +168,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const section = items[0]?.section as "agents" | "skills" | "commands";
     if (!section) return;
 
+    // Filter to only items that need toggling
+    const toToggle = items.filter((i) => i.enabled !== enable);
+    if (toToggle.length === 0) return;
+
     // Optimistic update all
     set(
       (state) =>
@@ -178,22 +183,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }) as Partial<AppStore>,
     );
 
-    const failed: AgentInfo[] = [];
-    for (const item of items) {
-      if (item.enabled === enable) continue;
-      try {
-        await toggleItemIPC(item.path, enable, item.section);
-      } catch {
-        failed.push(item);
-      }
-    }
-
-    await get().silentReload(section);
-
-    if (failed.length > 0) {
-      get().showToast(
-        `Failed to toggle ${failed.length} item${failed.length > 1 ? "s" : ""}`,
+    try {
+      const failures = await toggleBatchIPC(
+        toToggle.map((i) => ({ path: i.path, enable })),
       );
+      await get().silentReload(section);
+      if (failures.length > 0) {
+        get().showToast(
+          `Failed to toggle ${failures.length} item${failures.length > 1 ? "s" : ""}`,
+        );
+      }
+    } catch {
+      await get().silentReload(section);
+      get().showToast("Failed to toggle group");
     }
   },
 

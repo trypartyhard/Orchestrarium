@@ -17,6 +17,7 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::get_skills,
         commands::get_commands,
         commands::toggle_item,
+        commands::toggle_batch,
         commands::frontend_ready,
         commands::get_setups,
         commands::get_active_setup,

@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 
 use tauri::State;
 
-use crate::models::AgentInfo;
+use crate::models::{AgentInfo, ToggleBatchItem};
 use crate::scanner;
 use crate::state::AppState;
 use crate::toggler;
@@ -82,6 +82,38 @@ pub async fn toggle_item(
     }
 
     Ok(agent)
+}
+
+/// Toggle multiple items at once (batch operation).
+#[tauri::command]
+#[specta::specta]
+pub async fn toggle_batch(
+    state: State<'_, AppState>,
+    items: Vec<ToggleBatchItem>,
+) -> Result<Vec<String>, String> {
+    state.watcher_state.suppressed.store(true, Ordering::SeqCst);
+
+    let mut failures: Vec<String> = Vec::new();
+    for item in &items {
+        let file_path = std::path::PathBuf::from(&item.path);
+        if let Err(e) = toggler::toggle(&file_path, item.enable) {
+            failures.push(format!("{}: {}", item.path, e));
+        }
+    }
+
+    // Refresh cached state for all sections
+    let (agents, skills, commands) = scanner::scan_all(&state.base_dir, "global");
+    *state.agents.lock().await = agents;
+    *state.skills.lock().await = skills;
+    *state.commands.lock().await = commands;
+
+    let watcher_state = state.watcher_state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        watcher_state.suppressed.store(false, Ordering::SeqCst);
+    });
+
+    Ok(failures)
 }
 
 /// Frontend signals it's ready to receive watcher events.

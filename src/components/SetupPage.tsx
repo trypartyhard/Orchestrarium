@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Upload, Save, Trash2 } from "lucide-react";
-import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useAppStore } from "../lib/store";
@@ -42,48 +42,28 @@ export function SetupPage() {
   const setupSkills = setupItems.filter((i) => skillIds.has(i.id));
   const setupCommands = setupItems.filter((i) => !agentIds.has(i.id) && !skillIds.has(i.id));
 
-  // Group agents by their group name for sub-grouping in Setup
-  const agentSubGroups = useMemo(() => {
+  // Group items by group name, sorted stably by item name within each group
+  function buildSubGroups(items: AgentInfo[]) {
     const map = new Map<string, AgentInfo[]>();
-    for (const item of setupAgents) {
+    for (const item of items) {
       const group = item.group || "Custom";
       if (!map.has(group)) map.set(group, []);
       map.get(group)!.push(item);
+    }
+    // Sort items within each group by name (stable order regardless of disk state)
+    for (const [, groupItems] of map) {
+      groupItems.sort((a, b) => a.name.localeCompare(b.name));
     }
     return Array.from(map.entries()).sort(([a], [b]) => {
       if (a === "Custom" && b !== "Custom") return 1;
       if (b === "Custom" && a !== "Custom") return -1;
       return a.localeCompare(b);
     });
-  }, [setupAgents]);
+  }
 
-  const skillSubGroups = useMemo(() => {
-    const map = new Map<string, AgentInfo[]>();
-    for (const item of setupSkills) {
-      const group = item.group || "Custom";
-      if (!map.has(group)) map.set(group, []);
-      map.get(group)!.push(item);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => {
-      if (a === "Custom" && b !== "Custom") return 1;
-      if (b === "Custom" && a !== "Custom") return -1;
-      return a.localeCompare(b);
-    });
-  }, [setupSkills]);
-
-  const commandSubGroups = useMemo(() => {
-    const map = new Map<string, AgentInfo[]>();
-    for (const item of setupCommands) {
-      const group = item.group || "Custom";
-      if (!map.has(group)) map.set(group, []);
-      map.get(group)!.push(item);
-    }
-    return Array.from(map.entries()).sort(([a], [b]) => {
-      if (a === "Custom" && b !== "Custom") return 1;
-      if (b === "Custom" && a !== "Custom") return -1;
-      return a.localeCompare(b);
-    });
-  }, [setupCommands]);
+  const agentSubGroups = useMemo(() => buildSubGroups(setupAgents), [setupAgents]);
+  const skillSubGroups = useMemo(() => buildSubGroups(setupSkills), [setupSkills]);
+  const commandSubGroups = useMemo(() => buildSubGroups(setupCommands), [setupCommands]);
 
   // Stats reflect actual disk state (not setup virtual state)
   const stats = {
@@ -216,7 +196,6 @@ export function SetupPage() {
           </span>
         </div>
       ) : (
-        <LayoutGroup>
           <div className="flex flex-col gap-5">
             {([
               { label: "Agents", subGroups: agentSubGroups, color: "#4fc3f7" },
@@ -256,11 +235,10 @@ export function SetupPage() {
                       {groupItems.map((item) => (
                         <motion.div
                           key={item.id}
-                          layout
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, x: -20 }}
-                          transition={{ duration: 0.3, ease: "easeInOut" }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
                           className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#27272c] px-3 py-2.5 hover:bg-[#313138]"
                         >
                           <ColorDot color={item.color} />
@@ -294,7 +272,6 @@ export function SetupPage() {
               </div>
             ))}
           </div>
-        </LayoutGroup>
       )}
 
       {/* Save modal */}
