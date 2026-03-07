@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Bot, Sparkles, Terminal, BookOpen } from "lucide-react";
+import { LayoutDashboard, Bot, Sparkles, Terminal, Library, BookOpen } from "lucide-react";
 import { useAppStore, type Section } from "../lib/store";
 import { TutorialModal } from "./TutorialModal";
 
@@ -8,6 +8,7 @@ const sections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
   { key: "commands", label: "Commands", icon: Terminal },
+  { key: "library", label: "Library", icon: Library },
 ];
 
 export function Sidebar() {

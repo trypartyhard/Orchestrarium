@@ -16,7 +16,7 @@ import {
   importSetup as importSetupIPC,
 } from "../bindings";
 
-export type Section = "setup" | "agents" | "skills" | "commands";
+export type Section = "setup" | "agents" | "skills" | "commands" | "library";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
 
@@ -104,6 +104,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
           getCommands(),
         ]);
         set({ agents, skills, commands, loading: false });
+      } else if (section === "library") {
+        await get().loadSetups();
+        set({ loading: false });
       } else {
         const data = await sectionLoaders[section]();
         set({ [section]: data, loading: false } as Partial<AppStore>);
@@ -124,6 +127,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           getCommands(),
         ]);
         set({ agents, skills, commands });
+      } else if (target === "library") {
+        await get().loadSetups();
       } else {
         const data = await sectionLoaders[target as ItemSection]();
         set({ [target]: data } as Partial<AppStore>);
@@ -299,6 +304,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
         getCommands(),
       ]);
       set({ agents, skills, commands });
+      // Sync setupIds to match the newly applied state
+      const all = [...agents, ...skills, ...commands];
+      const ids = new Set(all.filter((i) => i.enabled).map((i) => i.id));
+      persistSetupIds(ids);
+      set({ setupIds: ids });
       if (failures.length > 0) {
         get().showToast(`Setup applied with ${failures.length} error(s)`);
       }

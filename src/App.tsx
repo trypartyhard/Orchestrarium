@@ -9,6 +9,7 @@ import { AgentList } from "./components/AgentList";
 import { StatusBar } from "./components/StatusBar";
 import { Toast } from "./components/Toast";
 import { SetupPage } from "./components/SetupPage";
+import { LibraryPage } from "./components/LibraryPage";
 
 function App() {
   const loadSection = useAppStore((s) => s.loadSection);
@@ -46,6 +47,8 @@ function App() {
         <div className="flex min-w-0 flex-1 flex-col border-t border-l border-[#222228]">
         {activeSection === "setup" ? (
           <SetupPage />
+        ) : activeSection === "library" ? (
+          <LibraryPage />
         ) : (
           <>
             <Header />

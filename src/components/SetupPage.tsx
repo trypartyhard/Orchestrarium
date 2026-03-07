@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Upload, Save, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useAppStore } from "../lib/store";
 import { SummaryCard } from "./SummaryCard";
 import { Toggle } from "./Toggle";
@@ -14,12 +12,12 @@ export function SetupPage() {
   const skills = useAppStore((s) => s.skills);
   const commands = useAppStore((s) => s.commands);
   const showToast = useAppStore((s) => s.showToast);
-  const addToSetup = useAppStore((s) => s.addToSetup);
   const setupIds = useAppStore((s) => s.setupIds);
   const syncSetupIds = useAppStore((s) => s.syncSetupIds);
   const removeFromSetup = useAppStore((s) => s.removeFromSetup);
   const toggleItem = useAppStore((s) => s.toggleItem);
   const toggleGroup = useAppStore((s) => s.toggleGroup);
+  const createSetup = useAppStore((s) => s.createSetup);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState("");
@@ -75,59 +73,10 @@ export function SetupPage() {
 
   const handleSave = async () => {
     if (!saveName.trim()) return;
-    // Build setup JSON from current setupIds + disk state
-    const entries = setupItems.map((i) => ({ id: i.id, enabled: i.enabled }));
-    const data = {
-      name: saveName.trim(),
-      created_at: new Date().toISOString(),
-      entries,
-    };
-    const json = JSON.stringify(data, null, 2);
-
-    const filePath = await save({
-      defaultPath: `${saveName.trim()}.json`,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (filePath) {
-      try {
-        await writeTextFile(filePath, json);
-        showToast(`Setup "${saveName.trim()}" saved`);
-      } catch {
-        showToast("Failed to save file");
-      }
-    }
+    await createSetup(saveName.trim());
+    showToast(`Setup "${saveName.trim()}" saved to Library`);
     setSaveName("");
     setShowSaveModal(false);
-  };
-
-  const handleImport = async () => {
-    const filePath = await open({
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!filePath) return;
-    try {
-      const content = await readTextFile(filePath);
-      const data = JSON.parse(content) as { entries: { id: string; enabled: boolean }[] };
-      if (!data.entries?.length) {
-        showToast("Invalid setup file");
-        return;
-      }
-      // Add all entries to setupIds
-      for (const entry of data.entries) {
-        addToSetup(entry.id);
-      }
-      // Apply enabled/disabled state to disk
-      const itemMap = new Map(allItems.map((i) => [i.id, i]));
-      for (const entry of data.entries) {
-        const item = itemMap.get(entry.id);
-        if (item && item.enabled !== entry.enabled) {
-          await toggleItem(item);
-        }
-      }
-      showToast("Setup imported");
-    } catch {
-      showToast("Failed to import setup");
-    }
   };
 
   const handleRemoveFromSetup = async (item: AgentInfo) => {
@@ -154,16 +103,10 @@ export function SetupPage() {
             Your current active configuration at a glance
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowSaveModal(true)} className={btnClass}>
-            <Save className="h-3.5 w-3.5" />
-            Save Setup
-          </button>
-          <button onClick={handleImport} className={btnClass}>
-            <Upload className="h-3.5 w-3.5" />
-            Load Setup
-          </button>
-        </div>
+        <button onClick={() => setShowSaveModal(true)} className={btnClass}>
+          <Save className="h-3.5 w-3.5" />
+          Save Setup
+        </button>
       </div>
 
       {/* Summary cards */}

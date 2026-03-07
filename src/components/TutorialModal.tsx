@@ -7,11 +7,14 @@ import {
   Bot,
   Sparkles,
   Terminal,
+  Library,
   Plus,
   Check,
   ToggleRight,
   Trash2,
   Save,
+  Play,
+  Download,
   Upload,
 } from "lucide-react";
 
@@ -93,7 +96,7 @@ const pages: Page[] = [
           </p>
         </div>
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
-          The app has <span className="font-semibold text-[#e8e8ec]">four sections</span>,
+          The app has <span className="font-semibold text-[#e8e8ec]">five sections</span>,
           accessible from the sidebar on the left:
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -101,6 +104,7 @@ const pages: Page[] = [
           <IconBox icon={Bot} color="#4fc3f7" label="Agents" />
           <IconBox icon={Sparkles} color="#66bb6a" label="Skills" />
           <IconBox icon={Terminal} color="#ffa726" label="Commands" />
+          <IconBox icon={Library} color="#a78bfa" label="Library" />
         </div>
         <p className="text-[12px] text-[#56565f]">
           Let's go through each one.
@@ -221,6 +225,14 @@ const pages: Page[] = [
           page is the heart of Orchestrarium. It shows all items you've added
           and lets you control them.
         </p>
+        <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
+          <p className="text-[13px] text-[#4fc3f7]">
+            <span className="font-semibold">First launch:</span> Orchestrarium
+            automatically detects all agents, skills, and commands that are
+            already active on your system and adds them to Setup. You don't
+            need to configure anything — your current setup is ready to go.
+          </p>
+        </div>
         <div className="flex flex-col gap-3">
           <StepRow
             step={1}
@@ -274,38 +286,68 @@ const pages: Page[] = [
     ),
   },
   {
-    title: "Saving & Loading Setups",
+    title: "Library — Saved Setups",
     content: (
       <div className="flex flex-col gap-5">
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
-          You can save your current configuration to a file and load it later.
-          This is useful for switching between different workflows.
+          The{" "}
+          <span className="font-semibold text-[#e8e8ec]">
+            <Library className="mb-0.5 inline h-3.5 w-3.5 text-[#a78bfa]" />{" "}
+            Library
+          </span>{" "}
+          stores all your saved setups. Switch between configurations instantly.
         </p>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
-            <span className="flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-3 py-1.5 text-xs font-medium text-[#4fc3f7]">
-              <Save className="h-3.5 w-3.5" />
-              Save Setup
-            </span>
-            <span className="text-[13px] text-[#8a8a96]">
-              — Exports your current setup to a <Kbd>.json</Kbd> file
-            </span>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
-            <span className="flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-3 py-1.5 text-xs font-medium text-[#4fc3f7]">
-              <Upload className="h-3.5 w-3.5" />
-              Load Setup
-            </span>
-            <span className="text-[13px] text-[#8a8a96]">
-              — Imports a setup file and applies it
-            </span>
-          </div>
+          <StepRow
+            step={1}
+            text={
+              <>
+                In the{" "}
+                <span className="font-semibold text-[#e8e8ec]">Setup</span>{" "}
+                tab, click{" "}
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <Save className="inline h-3 w-3" /> Save Setup
+                </span>{" "}
+                — it saves directly to the Library.
+              </>
+            }
+          />
+          <StepRow
+            step={2}
+            text={
+              <>
+                Open the{" "}
+                <span className="font-semibold text-[#a78bfa]">Library</span>{" "}
+                tab to see all saved setups with their details.
+              </>
+            }
+          />
+          <StepRow
+            step={3}
+            text={
+              <>
+                Click{" "}
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <Play className="inline h-3 w-3" /> Activate
+                </span>{" "}
+                to apply a setup — it enables/disables items on disk to match.
+              </>
+            }
+          />
         </div>
-        <div className="rounded-lg border border-[#ffa726]/20 bg-[#ffa726]/5 px-4 py-3">
-          <p className="text-[13px] text-[#ffa726]">
-            <span className="font-semibold">Tip:</span> Share setup files with
-            your team so everyone uses the same agent configuration.
+        <div className="flex flex-col gap-2 rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+          <p className="text-[12px] text-[#8a8a96]">
+            <span className="font-semibold text-[#c0c0c8]">Library also supports:</span>
           </p>
+          <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
+            <Download className="h-3 w-3 text-[#56565f]" /> Export — save setup as a <Kbd>.json</Kbd> file to share
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
+            <Upload className="h-3 w-3 text-[#56565f]" /> Import — load a setup from a <Kbd>.json</Kbd> file
+          </div>
+          <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
+            <Trash2 className="h-3 w-3 text-[#56565f]" /> Delete — remove a setup from the Library
+          </div>
         </div>
       </div>
     ),
@@ -370,7 +412,18 @@ const pages: Page[] = [
                 <span className="font-semibold text-[#e8e8ec]">
                   Save Setup
                 </span>{" "}
-                to keep your configuration for later.
+                to keep your configuration in the{" "}
+                <span className="font-semibold text-[#a78bfa]">Library</span>.
+              </>
+            }
+          />
+          <StepRow
+            step={6}
+            text={
+              <>
+                Use the{" "}
+                <span className="font-semibold text-[#a78bfa]">Library</span>{" "}
+                to switch between saved setups with one click.
               </>
             }
           />
