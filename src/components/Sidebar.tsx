@@ -1,5 +1,7 @@
-import { LayoutDashboard, Bot, Sparkles, Terminal, Settings } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Bot, Sparkles, Terminal, BookOpen } from "lucide-react";
 import { useAppStore, type Section } from "../lib/store";
+import { TutorialModal } from "./TutorialModal";
 
 const sections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "setup", label: "Setup", icon: LayoutDashboard },
@@ -12,6 +14,7 @@ export function Sidebar() {
   const activeSection = useAppStore((s) => s.activeSection);
   const setActiveSection = useAppStore((s) => s.setActiveSection);
   const loadSection = useAppStore((s) => s.loadSection);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const handleClick = (section: Section) => {
     setActiveSection(section);
@@ -54,15 +57,17 @@ export function Sidebar() {
       </nav>
       <div className="pb-5">
         <button
-          title="Settings"
+          onClick={() => setShowTutorial(true)}
+          title="Tutorial"
           className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#8a8a96]"
         >
-          <Settings className="h-[18px] w-[18px]" />
+          <BookOpen className="h-[18px] w-[18px]" />
           <span className="pointer-events-none absolute left-14 z-50 hidden whitespace-nowrap rounded bg-[#3a3a42] px-2 py-1 text-xs text-[#e8e8ec] shadow-lg group-hover:block">
-            Settings
+            Tutorial
           </span>
         </button>
       </div>
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </aside>
   );
 }
