@@ -12,10 +12,11 @@
     "windows": [
       {
         "title": "Orchestrarium",
-        "width": 1200,
-        "height": 800,
-        "minWidth": 800,
-        "minHeight": 600,
+        "width": 960,
+        "height": 680,
+        "minWidth": 700,
+        "minHeight": 500,
+        "center": true,
         "decorations": false
       }
     ],
@@ -34,7 +35,8 @@
     ],
     "windows": {
       "nsis": {
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
       }
     },
     "publisher": "Orchestrarium",

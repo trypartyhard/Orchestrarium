@@ -12,7 +12,7 @@ export function SummaryCard({ title, enabled, total, color }: SummaryCardProps) 
     <div className="flex flex-1 items-center justify-between rounded-[10px] bg-[#27272c] px-5 py-4">
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-[#7a7a88]">{title}</span>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 whitespace-nowrap">
           <span className="text-[32px] font-bold leading-none" style={{ color }}>
             {enabled}
           </span>
