@@ -19,7 +19,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-full w-16 shrink-0 flex-col items-center bg-[#1e1e23]">
+    <aside className="flex h-full w-16 shrink-0 flex-col items-center bg-[#111116]">
       <nav className="flex flex-1 flex-col items-center gap-[14px] pt-5">
         {sections.map(({ key, label, icon: Icon }) => {
           const isActive = activeSection === key;

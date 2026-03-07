@@ -17,7 +17,7 @@ export function Toggle({ enabled, onToggle, disabled }: ToggleProps) {
         disabled ? "cursor-not-allowed opacity-50" : ""
       }`}
       initial={false}
-      animate={{ backgroundColor: enabled ? "#4fc3f7" : "#6b6b78" }}
+      animate={{ backgroundColor: enabled ? "#2a9bb5" : "#6b6b78" }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
       aria-checked={enabled}
       role="switch"

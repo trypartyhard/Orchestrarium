@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "./lib/store";
 import { frontendReady } from "./bindings";
+import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
 import { AgentList } from "./components/AgentList";
@@ -33,9 +34,11 @@ function App() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-[#2b2b30] text-[#e8e8ec]">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex h-screen flex-col bg-[#18181e] text-[#e8e8ec]">
+      <TitleBar />
+      <div className="flex min-w-0 flex-1 overflow-hidden">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
         {activeSection === "setup" ? (
           <SetupPage />
         ) : (
@@ -45,6 +48,7 @@ function App() {
           </>
         )}
         <StatusBar />
+        </div>
       </div>
       <Toast />
     </div>

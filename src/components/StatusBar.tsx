@@ -19,7 +19,7 @@ export function StatusBar() {
   const disabledCount = items.filter((i) => !i.enabled).length;
 
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#3a3a42] bg-[#232328] px-4 font-mono text-[11px] text-[#56565f]">
+    <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#222228] bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">
       <span>~/.claude/agents/</span>
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
