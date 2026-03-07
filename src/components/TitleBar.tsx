@@ -37,7 +37,7 @@ function LogoIcon() {
 export function TitleBar() {
   return (
     <div
-      className="relative flex h-11 shrink-0 items-center border-b border-[#222228] bg-[#111116]"
+      className="relative flex h-11 shrink-0 items-center bg-[#111116]"
       data-tauri-drag-region
     >
       {/* Logo left */}

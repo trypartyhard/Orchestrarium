@@ -43,7 +43,7 @@ function App() {
       <TitleBar />
       <div className="flex min-w-0 flex-1 overflow-hidden">
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col border-t border-l border-[#222228]">
         {activeSection === "setup" ? (
           <SetupPage />
         ) : (

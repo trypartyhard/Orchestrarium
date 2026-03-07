@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* Scrollbar styling to match sidebar/titlebar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #111116;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a32;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a42;
+}
