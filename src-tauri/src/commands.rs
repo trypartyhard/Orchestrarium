@@ -141,6 +141,15 @@ pub async fn get_active_setup() -> Result<Option<String>, String> {
 
 #[tauri::command]
 #[specta::specta]
+pub async fn clear_active_setup() -> Result<(), String> {
+    let mut file = crate::setups::load_setups()?;
+    file.active = None;
+    crate::setups::save_setups(&file)?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn create_setup(
     state: State<'_, AppState>,
     name: String,

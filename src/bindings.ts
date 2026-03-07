@@ -73,6 +73,10 @@ export async function getActiveSetup(): Promise<string | null> {
   return await invoke<string | null>("get_active_setup");
 }
 
+export async function clearActiveSetup(): Promise<void> {
+  return await invoke<void>("clear_active_setup");
+}
+
 export async function createSetup(name: string): Promise<Setup> {
   return await invoke<Setup>("create_setup", { name });
 }

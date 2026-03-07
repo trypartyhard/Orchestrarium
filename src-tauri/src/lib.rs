@@ -21,6 +21,7 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::frontend_ready,
         commands::get_setups,
         commands::get_active_setup,
+        commands::clear_active_setup,
         commands::create_setup,
         commands::delete_setup,
         commands::apply_setup,

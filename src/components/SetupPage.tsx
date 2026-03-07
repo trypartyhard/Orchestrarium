@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Save, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, Trash2, ChevronDown, ChevronRight, XCircle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "../lib/store";
 import { SummaryCard } from "./SummaryCard";
@@ -18,8 +18,10 @@ export function SetupPage() {
   const toggleItem = useAppStore((s) => s.toggleItem);
   const toggleGroup = useAppStore((s) => s.toggleGroup);
   const createSetup = useAppStore((s) => s.createSetup);
+  const clearSetup = useAppStore((s) => s.clearSetup);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -90,8 +92,16 @@ export function SetupPage() {
     items.forEach((i) => removeFromSetup(i.id));
   };
 
+  const handleClear = async () => {
+    await clearSetup();
+    setShowClearModal(false);
+    showToast("Setup cleared");
+  };
+
   const btnClass =
     "flex h-[34px] items-center gap-2 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-4 text-xs font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20";
+  const btnDangerClass =
+    "flex h-[34px] items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-4 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20";
 
   return (
     <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-6">
@@ -103,10 +113,18 @@ export function SetupPage() {
             Your current active configuration at a glance
           </p>
         </div>
-        <button onClick={() => setShowSaveModal(true)} className={btnClass}>
-          <Save className="h-3.5 w-3.5" />
-          Save Setup
-        </button>
+        <div className="flex items-center gap-2">
+          {setupItems.length > 0 && (
+            <button onClick={() => setShowClearModal(true)} className={btnDangerClass}>
+              <XCircle className="h-3.5 w-3.5" />
+              Clear Setup
+            </button>
+          )}
+          <button onClick={() => setShowSaveModal(true)} className={btnClass}>
+            <Save className="h-3.5 w-3.5" />
+            Save Setup
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
@@ -224,6 +242,35 @@ export function SetupPage() {
               </div>
             ))}
           </div>
+      )}
+
+      {/* Clear confirmation modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex w-80 flex-col gap-4 rounded-lg border border-[#3a3a42] bg-[#27272c] p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-[#e8e8ec]">
+              Clear Setup
+            </h3>
+            <p className="text-[13px] leading-relaxed text-[#8a8a96]">
+              Are you sure you want to clear the current setup? All items will
+              be disabled and removed from the list.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowClearModal(false)}
+                className="rounded px-3 py-1.5 text-xs text-[#8a8a96] hover:text-[#e8e8ec]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClear}
+                className="rounded bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500/80"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Save modal */}

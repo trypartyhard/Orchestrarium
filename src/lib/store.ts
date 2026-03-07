@@ -9,6 +9,7 @@ import {
   toggleBatch as toggleBatchIPC,
   getSetups as getSetupsIPC,
   getActiveSetup as getActiveSetupIPC,
+  clearActiveSetup as clearActiveSetupIPC,
   createSetup as createSetupIPC,
   deleteSetup as deleteSetupIPC,
   applySetup as applySetupIPC,
@@ -51,6 +52,7 @@ interface AppStore {
   syncSetupIds: () => void;
   addToSetup: (id: string) => void;
   removeFromSetup: (id: string) => void;
+  clearSetup: () => Promise<void>;
   loadSetups: () => Promise<void>;
   createSetup: (name: string) => Promise<void>;
   deleteSetup: (name: string) => Promise<void>;
@@ -255,6 +257,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       persistSetupIds(next);
       return { setupIds: next };
     });
+  },
+
+  clearSetup: async () => {
+    const all = [...get().agents, ...get().skills, ...get().commands];
+    const enabled = all.filter((i) => get().setupIds.has(i.id) && i.enabled);
+    if (enabled.length > 0) {
+      await toggleBatchIPC(enabled.map((i) => ({ path: i.path, enable: false })));
+    }
+    const empty = new Set<string>();
+    persistSetupIds(empty);
+    set({ setupIds: empty, activeSetup: null });
+    await clearActiveSetupIPC();
+    await get().silentReload("setup");
   },
 
   showToast: (message) => {
