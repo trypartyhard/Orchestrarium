@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Upload, Save, Trash2 } from "lucide-react";
+import { Upload, Save, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -23,6 +23,7 @@ export function SetupPage() {
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const allItems = useMemo(
     () => [...agents, ...skills, ...commands],
@@ -198,15 +199,23 @@ export function SetupPage() {
       ) : (
           <div className="flex flex-col gap-5">
             {([
-              { label: "Agents", subGroups: agentSubGroups, color: "#4fc3f7" },
-              { label: "Skills", subGroups: skillSubGroups, color: "#66bb6a" },
-              { label: "Commands", subGroups: commandSubGroups, color: "#ffa726" },
+              { label: "Active Agents", key: "agents", subGroups: agentSubGroups, color: "#4fc3f7" },
+              { label: "Active Skills", key: "skills", subGroups: skillSubGroups, color: "#66bb6a" },
+              { label: "Active Commands", key: "commands", subGroups: commandSubGroups, color: "#ffa726" },
             ] as const).filter((g) => g.subGroups.length > 0).map((section) => (
-              <div key={section.label} className="flex flex-col gap-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-[#56565f]">
+              <div key={section.key} className="flex flex-col gap-3">
+                <button
+                  onClick={() => setCollapsed((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
+                  className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#56565f] transition-colors hover:text-[#8a8a96]"
+                >
+                  {collapsed[section.key] ? (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
                   {section.label}
-                </h3>
-                {section.subGroups.map(([groupName, groupItems]) => {
+                </button>
+                {!collapsed[section.key] && section.subGroups.map(([groupName, groupItems]) => {
                   const allEnabled = groupItems.every((i) => i.enabled);
                   return (
                   <div key={groupName} className="flex flex-col gap-1.5">

@@ -204,14 +204,34 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setFilter: (filter) => set({ filter }),
 
   syncSetupIds: () => {
-    if (get().setupIdsInitialized) return;
     const all = [...get().agents, ...get().skills, ...get().commands];
     if (all.length === 0) return;
     const persisted = loadPersistedSetupIds();
-    // Use persisted if available, otherwise seed from enabled items
-    const ids = persisted.size > 0 ? persisted : new Set(all.filter((i) => i.enabled).map((i) => i.id));
-    persistSetupIds(ids);
-    set({ setupIds: ids, setupIdsInitialized: true });
+    if (!get().setupIdsInitialized) {
+      // First run: use persisted or seed from enabled items
+      const ids = persisted.size > 0 ? persisted : new Set(all.filter((i) => i.enabled).map((i) => i.id));
+      // Also add any enabled items not yet in persisted set (new files)
+      for (const item of all) {
+        if (item.enabled) ids.add(item.id);
+      }
+      persistSetupIds(ids);
+      set({ setupIds: ids, setupIdsInitialized: true });
+    } else {
+      // Subsequent runs: add any new enabled items not yet tracked
+      const current = get().setupIds;
+      let changed = false;
+      const next = new Set(current);
+      for (const item of all) {
+        if (item.enabled && !next.has(item.id)) {
+          next.add(item.id);
+          changed = true;
+        }
+      }
+      if (changed) {
+        persistSetupIds(next);
+        set({ setupIds: next });
+      }
+    }
   },
 
   addToSetup: (id) => {
