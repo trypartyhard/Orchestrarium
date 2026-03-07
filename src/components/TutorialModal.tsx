@@ -14,8 +14,13 @@ import {
   Trash2,
   Save,
   Play,
+  Pause,
   Download,
   Upload,
+  FileText,
+  Settings,
+  XCircle,
+  Pencil,
 } from "lucide-react";
 
 interface TutorialModalProps {
@@ -105,7 +110,12 @@ const pages: Page[] = [
           <IconBox icon={Sparkles} color="#66bb6a" label="Skills" />
           <IconBox icon={Terminal} color="#ffa726" label="Commands" />
           <IconBox icon={Library} color="#a78bfa" label="Library" />
+          <IconBox icon={FileText} color="#a78bfa" label="CLAUDE.md ✦" />
         </div>
+        <p className="text-[11px] text-[#56565f]">
+          ✦ CLAUDE.md appears when Advanced Features are enabled in{" "}
+          <Settings className="mb-0.5 inline h-3 w-3" /> Settings.
+        </p>
         <p className="text-[12px] text-[#56565f]">
           Let's go through each one.
         </p>
@@ -281,6 +291,17 @@ const pages: Page[] = [
               </>
             }
           />
+          <StepRow
+            step={5}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-red-400">
+                  <XCircle className="inline h-3 w-3" /> Clear Setup
+                </span>{" "}
+                removes all items at once and disables everything.
+              </>
+            }
+          />
         </div>
       </div>
     ),
@@ -348,6 +369,81 @@ const pages: Page[] = [
           <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
             <Trash2 className="h-3 w-3 text-[#56565f]" /> Delete — remove a setup from the Library
           </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "CLAUDE.md Profiles",
+    content: (
+      <div className="flex flex-col gap-5">
+        <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
+          <span className="font-semibold text-[#e8e8ec]">CLAUDE.md</span> is
+          a configuration file that defines how Claude Code behaves — its
+          rules, style, and instructions. Orchestrarium lets you manage
+          multiple profiles and switch between them.
+        </p>
+        <div className="rounded-lg border border-[#a78bfa]/20 bg-[#a78bfa]/5 px-4 py-3">
+          <p className="text-[13px] text-[#a78bfa]">
+            <span className="font-semibold">How to enable:</span> Open{" "}
+            <Settings className="mb-0.5 inline h-3 w-3" /> Settings at the
+            bottom of the sidebar and turn on{" "}
+            <span className="font-semibold">Advanced Features</span>.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <StepRow
+            step={1}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#a78bfa]">
+                  <Plus className="inline h-3 w-3" /> New Profile
+                </span>{" "}
+                — create a profile (empty or copied from your current CLAUDE.md).
+              </>
+            }
+          />
+          <StepRow
+            step={2}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#a78bfa]">
+                  <Play className="inline h-3 w-3" /> Activate
+                </span>{" "}
+                — writes the profile content into{" "}
+                <Kbd>~/.claude/CLAUDE.md</Kbd>. Claude Code reads it immediately.
+              </>
+            }
+          />
+          <StepRow
+            step={3}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#8a8a96]">
+                  <Pause className="inline h-3 w-3" /> Deactivate
+                </span>{" "}
+                — clears CLAUDE.md contents. The profile stays saved for later.
+              </>
+            }
+          />
+          <StepRow
+            step={4}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#8a8a96]">
+                  <Pencil className="inline h-3 w-3" /> Edit
+                </span>{" "}
+                — built-in editor to modify profile content directly in the app.
+              </>
+            }
+          />
+        </div>
+        <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+          <p className="text-[13px] text-[#b0b0b8]">
+            <span className="font-semibold text-[#c0c0c8]">Example profiles:</span>{" "}
+            "Strict Review" for production code, "Fast Prototype" for
+            hackathons, "Python Backend" for specific tech stacks.
+          </p>
         </div>
       </div>
     ),
