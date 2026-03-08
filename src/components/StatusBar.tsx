@@ -24,7 +24,7 @@ export function StatusBar() {
 
   const pathLabel =
     activeSection === "library"
-      ? "~/.claude/cam/setups.json"
+      ? "~/.claude/orchestrarium/setups.json"
       : activeSection === "claude-md"
         ? "~/.claude/CLAUDE.md"
         : activeSection === "setup"
@@ -36,7 +36,7 @@ export function StatusBar() {
               : "~/.claude/agents/";
 
   return (
-    <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#222228] bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">
+    <footer className="flex h-6 shrink-0 items-center justify-between bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">
       <span>{pathLabel}</span>
       <div className="flex items-center gap-4">
         {activeSection === "library" ? (

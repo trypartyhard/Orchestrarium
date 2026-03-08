@@ -46,23 +46,25 @@ function App() {
   return (
     <div className="flex h-screen flex-col bg-[#18181e] text-[#e8e8ec]">
       <TitleBar />
-      <div className="flex min-w-0 flex-1 overflow-hidden">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col border-t border-l border-[#222228]">
-        {activeSection === "setup" ? (
-          <SetupPage />
-        ) : activeSection === "library" ? (
-          <LibraryPage />
-        ) : activeSection === "claude-md" ? (
-          <ClaudeMdPage />
-        ) : (
-          <>
-            <Header />
-            <AgentList />
-          </>
-        )}
-        <StatusBar />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 overflow-hidden">
+          <Sidebar />
+          <div className="flex min-w-0 flex-1 flex-col border-t border-l border-[#222228]">
+          {activeSection === "setup" ? (
+            <SetupPage />
+          ) : activeSection === "library" ? (
+            <LibraryPage />
+          ) : activeSection === "claude-md" ? (
+            <ClaudeMdPage />
+          ) : (
+            <>
+              <Header />
+              <AgentList />
+            </>
+          )}
+          </div>
         </div>
+        <StatusBar />
       </div>
       <Toast />
     </div>

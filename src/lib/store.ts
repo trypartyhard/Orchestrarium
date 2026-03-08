@@ -327,7 +327,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (activeSetup && get().setupSnapshot.length === 0) {
         const active = setups.find((s) => s.name === activeSetup);
         if (active) {
-          set({ setupSnapshot: active.entries.map((e) => ({ id: e.id, enabled: e.enabled })) });
+          const ids = get().setupIds.size > 0 ? get().setupIds : loadPersistedSetupIds();
+          set({ setupSnapshot: active.entries
+            .filter((e) => ids.has(e.id))
+            .map((e) => ({ id: e.id, enabled: e.enabled })) });
         }
       }
     } catch {
