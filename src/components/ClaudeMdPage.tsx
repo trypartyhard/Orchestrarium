@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Play, Pause, Trash2, Plus, Pencil, Save, X, FileText, Copy } from "lucide-react";
+import { Play, Pause, Trash2, Plus, Pencil, Save, X, FileText, Copy, Eye } from "lucide-react";
 import { useAppStore } from "../lib/store";
 
 export function ClaudeMdPage() {
@@ -20,6 +20,8 @@ export function ClaudeMdPage() {
   const [editingProfile, setEditingProfile] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState("");
   const [editorDirty, setEditorDirty] = useState(false);
+  const [previewProfile, setPreviewProfile] = useState<string | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
 
   useEffect(() => {
     loadProfiles();
@@ -65,6 +67,12 @@ export function ClaudeMdPage() {
     await saveProfile(editingProfile, editorContent);
     setEditorDirty(false);
     showToast(`Profile "${editingProfile}" saved`);
+  };
+
+  const handlePreview = async (name: string) => {
+    const content = await readProfile(name);
+    setPreviewContent(content);
+    setPreviewProfile(name);
   };
 
   const handleCloseEditor = () => {
@@ -210,6 +218,13 @@ export function ClaudeMdPage() {
                   </button>
                 )}
                 <button
+                  onClick={() => handlePreview(profile.name)}
+                  title="Preview profile"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#a78bfa]/10 hover:text-[#a78bfa]"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => handleEdit(profile.name)}
                   title="Edit profile"
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#3a3a42] hover:text-[#8a8a96]"
@@ -243,6 +258,40 @@ export function ClaudeMdPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Preview modal */}
+      {previewProfile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => { setPreviewProfile(null); setPreviewContent(null); }}
+        >
+          <div
+            className="relative flex max-h-[80vh] w-[560px] flex-col rounded-xl border border-[#3a3a42] bg-[#1e1e23] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#3a3a42] px-6 py-4">
+              <h2 className="truncate text-[15px] font-semibold text-[#e8e8ec]">
+                {previewProfile}
+              </h2>
+              <button
+                onClick={() => { setPreviewProfile(null); setPreviewContent(null); }}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#c0c0c8]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto px-6 py-5">
+              {previewContent === null ? (
+                <p className="text-sm text-[#56565f]">Loading...</p>
+              ) : (
+                <pre className="whitespace-pre-wrap break-words font-mono text-[13px] leading-relaxed text-[#c0c0c8]">
+                  {previewContent}
+                </pre>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

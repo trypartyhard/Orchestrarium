@@ -97,6 +97,12 @@ export async function importSetup(json: string): Promise<Setup> {
   return await invoke<Setup>("import_setup", { json });
 }
 
+// ─── File preview ───────────────────────────────────────────────
+
+export async function readItemContent(path: string): Promise<string> {
+  return await invoke<string>("read_item_content", { path });
+}
+
 // ─── CLAUDE.md profile bindings ─────────────────────────────────
 
 export type ClaudeMdProfile = {
@@ -104,6 +110,10 @@ export type ClaudeMdProfile = {
   active: boolean;
   size_bytes: number;
 };
+
+export async function autoImportClaudeMd(): Promise<boolean> {
+  return await invoke<boolean>("auto_import_claude_md");
+}
 
 export async function listClaudeProfiles(): Promise<ClaudeMdProfile[]> {
   return await invoke<ClaudeMdProfile[]>("list_claude_profiles");

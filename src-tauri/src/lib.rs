@@ -28,6 +28,8 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::apply_setup,
         commands::export_setup,
         commands::import_setup,
+        commands::read_item_content,
+        commands::auto_import_claude_md,
         commands::list_claude_profiles,
         commands::create_claude_profile,
         commands::activate_claude_profile,

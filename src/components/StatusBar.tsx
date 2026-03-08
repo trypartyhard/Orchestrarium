@@ -27,7 +27,13 @@ export function StatusBar() {
       ? "~/.claude/cam/setups.json"
       : activeSection === "claude-md"
         ? "~/.claude/CLAUDE.md"
-        : "~/.claude/agents/";
+        : activeSection === "setup"
+          ? "~/.claude/"
+          : activeSection === "skills"
+            ? "~/.claude/skills/"
+            : activeSection === "commands"
+              ? "~/.claude/commands/"
+              : "~/.claude/agents/";
 
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between border-t border-[#222228] bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">

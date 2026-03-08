@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "./lib/store";
-import { frontendReady } from "./bindings";
+import { frontendReady, autoImportClaudeMd } from "./bindings";
 import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -18,6 +18,9 @@ function App() {
   const loadSetups = useAppStore((s) => s.loadSetups);
 
   useEffect(() => {
+    // Auto-import existing CLAUDE.md on first run
+    autoImportClaudeMd().catch(() => {});
+
     // Initial load
     loadSection(activeSection);
     loadSetups();

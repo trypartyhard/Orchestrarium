@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal } from "lucide-react";
+import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal, Search } from "lucide-react";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useAppStore } from "../lib/store";
@@ -16,6 +16,11 @@ export function LibraryPage() {
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredSetups = search
+    ? setups.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+    : setups;
 
   const handleApply = async (name: string) => {
     setApplying(name);
@@ -101,8 +106,26 @@ export function LibraryPage() {
         </button>
       </div>
 
+      {/* Search */}
+      {setups.length > 0 && (
+        <div className="relative flex items-center">
+          <Search className="absolute left-2.5 h-4 w-4 text-[#6b6b78]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search setups..."
+            className="h-8 w-64 rounded-md border border-[#3a3a42] bg-[#27272c] pl-8 pr-3 text-sm text-[#e8e8ec] placeholder-[#6b6b78] outline-none focus:border-[#4fc3f7]"
+          />
+        </div>
+      )}
+
       {/* Setups list */}
-      {setups.length === 0 ? (
+      {filteredSetups.length === 0 && search ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2">
+          <span className="text-sm text-[#56565f]">No matches for "{search}"</span>
+        </div>
+      ) : setups.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2">
           <span className="text-sm text-[#56565f]">No saved setups</span>
           <span className="text-xs text-[#44444d]">
@@ -111,7 +134,7 @@ export function LibraryPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {setups.map((setup) => {
+          {filteredSetups.map((setup) => {
             const isActive = activeSetup === setup.name;
             const counts = countBySection(setup.entries);
             const enabledCount = setup.entries.filter((e) => e.enabled).length;

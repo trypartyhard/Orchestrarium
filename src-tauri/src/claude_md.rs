@@ -178,6 +178,42 @@ pub fn save_profile(name: &str, content: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Auto-import existing CLAUDE.md on first run if no profiles exist yet.
+pub fn auto_import_if_needed() -> Result<bool, String> {
+    let dir = profiles_dir();
+    // If profiles dir already exists and has .md files, skip
+    if dir.exists() {
+        let has_profiles = std::fs::read_dir(&dir)
+            .map_err(|e| format!("Read dir error: {}", e))?
+            .any(|e| {
+                e.ok()
+                    .and_then(|e| e.path().extension().map(|ext| ext == "md"))
+                    .unwrap_or(false)
+            });
+        if has_profiles {
+            return Ok(false);
+        }
+    }
+
+    let claude_md = claude_md_path();
+    if !claude_md.exists() {
+        return Ok(false);
+    }
+
+    let content = std::fs::read_to_string(&claude_md).map_err(|e| format!("Read error: {}", e))?;
+    if content.trim().is_empty() {
+        return Ok(false);
+    }
+
+    // Create profiles dir and save as "Default"
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Create dir error: {}", e))?;
+    let profile_path = dir.join("Default.md");
+    std::fs::write(&profile_path, &content).map_err(|e| format!("Write error: {}", e))?;
+    write_active_name("Default")?;
+
+    Ok(true)
+}
+
 /// Rename a profile.
 pub fn rename_profile(old_name: &str, new_name: &str) -> Result<(), String> {
     let dir = profiles_dir();

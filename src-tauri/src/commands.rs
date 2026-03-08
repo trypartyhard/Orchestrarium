@@ -244,7 +244,21 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
     Ok(setup)
 }
 
+// ─── File preview ───────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_item_content(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
 // ─── CLAUDE.md profile commands ─────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn auto_import_claude_md() -> Result<bool, String> {
+    claude_md::auto_import_if_needed()
+}
 
 #[tauri::command]
 #[specta::specta]
