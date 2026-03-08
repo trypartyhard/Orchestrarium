@@ -3,13 +3,21 @@ interface SummaryCardProps {
   enabled: number;
   total: number;
   color: string;
+  active?: boolean;
+  onClick?: () => void;
 }
 
-export function SummaryCard({ title, enabled, total, color }: SummaryCardProps) {
+export function SummaryCard({ title, enabled, total, color, active, onClick }: SummaryCardProps) {
   const pct = total > 0 ? Math.round((enabled / total) * 100) : 0;
 
   return (
-    <div className="flex flex-1 items-center justify-between rounded-[10px] bg-[#27272c] px-5 py-4">
+    <div
+      onClick={onClick}
+      className={`flex flex-1 cursor-pointer items-center justify-between rounded-[10px] bg-[#27272c] px-5 py-4 transition-colors hover:bg-[#313138] ${
+        active ? "ring-2" : ""
+      }`}
+      style={active ? { boxShadow: `0 0 0 2px ${color}` } : undefined}
+    >
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-[#7a7a88]">{title}</span>
         <div className="flex items-baseline gap-2 whitespace-nowrap">

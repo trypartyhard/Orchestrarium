@@ -24,6 +24,7 @@ export function SetupPage() {
   const [showClearModal, setShowClearModal] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [activeFilter, setActiveFilter] = useState<"agents" | "skills" | "commands" | null>(null);
 
   const allItems = useMemo(
     () => [...agents, ...skills, ...commands],
@@ -66,11 +67,11 @@ export function SetupPage() {
   const skillSubGroups = useMemo(() => buildSubGroups(setupSkills), [setupSkills]);
   const commandSubGroups = useMemo(() => buildSubGroups(setupCommands), [setupCommands]);
 
-  // Stats reflect actual disk state (not setup virtual state)
+  // Stats reflect setup state
   const stats = {
-    agents: { enabled: agents.filter((a) => a.enabled).length, total: agents.length },
-    skills: { enabled: skills.filter((s) => s.enabled).length, total: skills.length },
-    commands: { enabled: commands.filter((c) => c.enabled).length, total: commands.length },
+    agents: { enabled: setupAgents.filter((a) => a.enabled).length, total: setupAgents.length },
+    skills: { enabled: setupSkills.filter((s) => s.enabled).length, total: setupSkills.length },
+    commands: { enabled: setupCommands.filter((c) => c.enabled).length, total: setupCommands.length },
   };
 
   const handleSave = async () => {
@@ -134,18 +135,24 @@ export function SetupPage() {
           enabled={stats.agents.enabled}
           total={stats.agents.total}
           color="#4fc3f7"
+          active={activeFilter === "agents"}
+          onClick={() => setActiveFilter(activeFilter === "agents" ? null : "agents")}
         />
         <SummaryCard
           title="ACTIVE SKILLS"
           enabled={stats.skills.enabled}
           total={stats.skills.total}
           color="#66bb6a"
+          active={activeFilter === "skills"}
+          onClick={() => setActiveFilter(activeFilter === "skills" ? null : "skills")}
         />
         <SummaryCard
           title="ACTIVE COMMANDS"
           enabled={stats.commands.enabled}
           total={stats.commands.total}
           color="#ffa726"
+          active={activeFilter === "commands"}
+          onClick={() => setActiveFilter(activeFilter === "commands" ? null : "commands")}
         />
       </div>
 
@@ -163,7 +170,7 @@ export function SetupPage() {
               { label: "Active Agents", key: "agents", subGroups: agentSubGroups, color: "#4fc3f7" },
               { label: "Active Skills", key: "skills", subGroups: skillSubGroups, color: "#66bb6a" },
               { label: "Active Commands", key: "commands", subGroups: commandSubGroups, color: "#ffa726" },
-            ] as const).filter((g) => g.subGroups.length > 0).map((section) => (
+            ] as const).filter((g) => g.subGroups.length > 0 && (!activeFilter || g.key === activeFilter)).map((section) => (
               <div key={section.key} className="flex flex-col gap-3">
                 <button
                   onClick={() => setCollapsed((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
