@@ -63,6 +63,7 @@ export function TitleBar() {
       <div className="flex h-full items-center">
         <button
           onClick={() => appWindow.minimize()}
+          aria-label="Minimize window"
           className="flex h-full w-12 items-center justify-center text-[#7a7a88] transition-colors hover:bg-[#2a2a32] hover:text-[#c0c0c8]"
         >
           <svg width="12" height="2" viewBox="0 0 12 2">
@@ -71,6 +72,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={() => appWindow.toggleMaximize()}
+          aria-label="Maximize window"
           className="flex h-full w-12 items-center justify-center text-[#7a7a88] transition-colors hover:bg-[#2a2a32] hover:text-[#c0c0c8]"
         >
           <svg width="12" height="12" viewBox="0 0 12 12">
@@ -79,6 +81,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={() => appWindow.close()}
+          aria-label="Close window"
           className="flex h-full w-12 items-center justify-center text-[#7a7a88] transition-colors hover:bg-[#e81123] hover:text-white"
         >
           <svg width="12" height="12" viewBox="0 0 12 12">

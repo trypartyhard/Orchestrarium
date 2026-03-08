@@ -109,6 +109,7 @@ export function ClaudeMdPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleCloseEditor}
+              aria-label="Close editor"
               className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#3a3a42] hover:text-[#8a8a96]"
             >
               <X className="h-4 w-4" />
@@ -229,6 +230,7 @@ export function ClaudeMdPage() {
                 <button
                   onClick={() => handlePreview(profile.name)}
                   title="Preview profile"
+                  aria-label="Preview profile"
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#a78bfa]/10 hover:text-[#a78bfa]"
                 >
                   <Eye className="h-3.5 w-3.5" />
@@ -236,6 +238,7 @@ export function ClaudeMdPage() {
                 <button
                   onClick={() => handleEdit(profile.name)}
                   title="Edit profile"
+                  aria-label="Edit profile"
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#3a3a42] hover:text-[#8a8a96]"
                 >
                   <Pencil className="h-3.5 w-3.5" />
@@ -259,6 +262,7 @@ export function ClaudeMdPage() {
                   <button
                     onClick={() => setConfirmDelete(profile.name)}
                     title="Delete profile"
+                    aria-label="Delete profile"
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -286,6 +290,7 @@ export function ClaudeMdPage() {
               </h2>
               <button
                 onClick={() => { setPreviewProfile(null); setPreviewContent(null); }}
+                aria-label="Close preview"
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#c0c0c8]"
               >
                 <X className="h-4 w-4" />

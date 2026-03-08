@@ -50,6 +50,7 @@ export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
           onClick={() => setShowPreview(true)}
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#6b6b78] transition-colors hover:bg-[#4fc3f7]/10 hover:text-[#4fc3f7]"
           title="Preview"
+          aria-label="Preview item content"
         >
           <Eye className="h-3.5 w-3.5" />
         </button>

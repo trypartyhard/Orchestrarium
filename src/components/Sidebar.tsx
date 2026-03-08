@@ -39,6 +39,7 @@ export function Sidebar() {
               key={key}
               onClick={() => handleClick(key)}
               title={label}
+              aria-label={label}
               className="group relative flex h-10 w-10 items-center justify-center"
             >
               {isActive && (
@@ -67,6 +68,7 @@ export function Sidebar() {
         <button
           onClick={() => setShowTutorial(true)}
           title="Tutorial"
+          aria-label="Open tutorial"
           className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#8a8a96]"
         >
           <BookOpen className="h-[18px] w-[18px]" />
@@ -77,6 +79,7 @@ export function Sidebar() {
         <button
           onClick={() => setShowSettings(true)}
           title="Settings"
+          aria-label="Open settings"
           className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#8a8a96]"
         >
           <Settings className="h-[18px] w-[18px]" />

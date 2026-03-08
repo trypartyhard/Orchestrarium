@@ -16,6 +16,7 @@ export function Toast() {
       <span>{toast.message}</span>
       <button
         onClick={hideToast}
+        aria-label="Dismiss notification"
         className={toast.message.startsWith("Failed") ? "text-red-400 hover:text-red-300" : "text-emerald-400 hover:text-emerald-300"}
       >
         <X className="h-4 w-4" />

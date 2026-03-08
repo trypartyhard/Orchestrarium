@@ -199,6 +199,7 @@ export function LibraryPage() {
                   <button
                     onClick={() => handleExport(setup.name)}
                     title="Export as JSON"
+                    aria-label="Export setup as JSON"
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-[#3a3a42] hover:text-[#8a8a96]"
                   >
                     <Download className="h-3.5 w-3.5" />
@@ -222,6 +223,7 @@ export function LibraryPage() {
                     <button
                       onClick={() => setConfirmDelete(setup.name)}
                       title="Delete setup"
+                      aria-label="Delete setup"
                       className="flex h-8 w-8 items-center justify-center rounded-lg text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

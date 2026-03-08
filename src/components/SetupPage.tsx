@@ -235,6 +235,7 @@ export function SetupPage() {
                           <button
                             onClick={() => handleRemoveGroupFromSetup(groupItems)}
                             title="Remove all from setup"
+                            aria-label="Remove all from setup"
                             className="flex h-5 w-5 items-center justify-center rounded-md text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
                           >
                             <Trash2 className="h-3 w-3" />
@@ -270,6 +271,7 @@ export function SetupPage() {
                           <button
                             onClick={() => handleRemoveFromSetup(item)}
                             title="Remove from setup"
+                            aria-label="Remove from setup"
                             className="flex h-7 w-7 items-center justify-center rounded-md text-[#56565f] transition-colors hover:bg-red-500/10 hover:text-red-400"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

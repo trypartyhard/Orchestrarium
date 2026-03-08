@@ -23,6 +23,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           <h2 className="text-[15px] font-semibold text-[#e8e8ec]">Settings</h2>
           <button
             onClick={onClose}
+            aria-label="Close settings"
             className="flex h-7 w-7 items-center justify-center rounded-md text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#c0c0c8]"
           >
             <X className="h-4 w-4" />
