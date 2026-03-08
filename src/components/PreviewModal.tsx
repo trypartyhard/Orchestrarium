@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { readItemContent } from "../bindings";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 interface PreviewModalProps {
   name: string;
@@ -11,6 +12,8 @@ interface PreviewModalProps {
 export function PreviewModal({ name, path, onClose }: PreviewModalProps) {
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEscapeKey(onClose);
 
   useEffect(() => {
     readItemContent(path)

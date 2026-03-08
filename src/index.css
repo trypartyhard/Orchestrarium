@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Remove focus outline on all buttons (desktop app, no keyboard-only nav needed) */
+button:focus {
+  outline: none;
+}
+
 /* Scrollbar styling to match sidebar/titlebar */
 ::-webkit-scrollbar {
   width: 8px;

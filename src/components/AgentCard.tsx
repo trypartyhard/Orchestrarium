@@ -8,13 +8,22 @@ import { PreviewModal } from "./PreviewModal";
 
 interface AgentCardProps {
   item: AgentInfo;
+  onAddToSetup?: (item: AgentInfo) => void;
 }
 
-export function AgentCard({ item }: AgentCardProps) {
+export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
   const setupIds = useAppStore((s) => s.setupIds);
   const addToSetup = useAppStore((s) => s.addToSetup);
   const inSetup = setupIds.has(item.id);
   const [showPreview, setShowPreview] = useState(false);
+
+  const handleAdd = () => {
+    if (onAddToSetup) {
+      onAddToSetup(item);
+    } else {
+      addToSetup(item.id);
+    }
+  };
 
   return (
     <>
@@ -51,7 +60,7 @@ export function AgentCard({ item }: AgentCardProps) {
           </span>
         ) : (
           <button
-            onClick={() => addToSetup(item.id)}
+            onClick={handleAdd}
             className="flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-3 py-1.5 text-xs font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20"
           >
             <Plus className="h-3 w-3" />

@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
-import { Save, Trash2, ChevronDown, ChevronRight, XCircle } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Save, Trash2, ChevronDown, ChevronRight, XCircle, AlertTriangle } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "../lib/store";
 import { SummaryCard } from "./SummaryCard";
 import { Toggle } from "./Toggle";
 import { ColorDot } from "./ColorDot";
 import type { AgentInfo } from "../bindings";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 export function SetupPage() {
   const agents = useAppStore((s) => s.agents);
@@ -19,12 +20,21 @@ export function SetupPage() {
   const toggleGroup = useAppStore((s) => s.toggleGroup);
   const createSetup = useAppStore((s) => s.createSetup);
   const clearSetup = useAppStore((s) => s.clearSetup);
+  const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeFilter, setActiveFilter] = useState<"agents" | "skills" | "commands" | null>(null);
+  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(new Set());
+  const [pendingToggle, setPendingToggle] = useState<AgentInfo | null>(null);
+
+  useEscapeKey(useCallback(() => {
+    if (pendingToggle) setPendingToggle(null);
+    else if (showSaveModal) { setShowSaveModal(false); setSaveName(""); }
+    else if (showClearModal) setShowClearModal(false);
+  }, [pendingToggle, showSaveModal, showClearModal]));
 
   const allItems = useMemo(
     () => [...agents, ...skills, ...commands],
@@ -72,6 +82,27 @@ export function SetupPage() {
     agents: { enabled: setupAgents.filter((a) => a.enabled).length, total: setupAgents.length },
     skills: { enabled: setupSkills.filter((s) => s.enabled).length, total: setupSkills.length },
     commands: { enabled: setupCommands.filter((c) => c.enabled).length, total: setupCommands.length },
+  };
+
+  const handleToggleWithWarning = (item: AgentInfo) => {
+    const group = item.group || "Custom";
+    // Only warn when disabling, in a named group with multiple items, and not yet warned
+    if (item.enabled && group !== "Custom" && !skipGroupWarnings && !warnedGroups.has(group)) {
+      const groupItems = allItems.filter((i) => i.group === group);
+      if (groupItems.length > 1) {
+        setPendingToggle(item);
+        return;
+      }
+    }
+    toggleItem(item);
+  };
+
+  const confirmGroupWarning = () => {
+    if (!pendingToggle) return;
+    const group = pendingToggle.group || "Custom";
+    setWarnedGroups((prev) => new Set(prev).add(group));
+    toggleItem(pendingToggle);
+    setPendingToggle(null);
   };
 
   const handleSave = async () => {
@@ -231,7 +262,7 @@ export function SetupPage() {
                           </div>
                           <Toggle
                             enabled={item.enabled}
-                            onToggle={() => toggleItem(item)}
+                            onToggle={() => handleToggleWithWarning(item)}
                           />
                           <button
                             onClick={() => handleRemoveFromSetup(item)}
@@ -249,6 +280,41 @@ export function SetupPage() {
               </div>
             ))}
           </div>
+      )}
+
+      {/* Group warning modal */}
+      {pendingToggle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex w-[360px] flex-col gap-4 rounded-lg border border-[#3a3a42] bg-[#27272c] p-5 shadow-xl">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-[#ffa726]" />
+              <h3 className="text-sm font-semibold text-[#e8e8ec]">
+                Group Warning
+              </h3>
+            </div>
+            <p className="text-[13px] leading-relaxed text-[#8a8a96]">
+              Disabling items from the{" "}
+              <span className="font-semibold text-[#e8e8ec]">
+                {pendingToggle.group}
+              </span>{" "}
+              group may affect other items in this group.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setPendingToggle(null)}
+                className="rounded px-3 py-1.5 text-xs text-[#8a8a96] hover:text-[#e8e8ec]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmGroupWarning}
+                className="rounded bg-[#ffa726] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#ffa726]/80"
+              >
+                Disable Anyway
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Clear confirmation modal */}

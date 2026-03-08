@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   X,
   ChevronLeft,
@@ -21,7 +21,11 @@ import {
   Settings,
   XCircle,
   Pencil,
+  Eye,
+  Search,
+  Info,
 } from "lucide-react";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 interface TutorialModalProps {
   onClose: () => void;
@@ -177,8 +181,10 @@ const pages: Page[] = [
             <span className="text-[#e8e8ec]">name</span>,{" "}
             <span className="text-[#e8e8ec]">description</span>,{" "}
             <span className="text-[#e8e8ec]">scope</span>{" "}
-            <span className="text-[#56565f]">(global or project)</span>, and a
-            button to add it to your Setup.
+            <span className="text-[#56565f]">(global or project)</span>, a{" "}
+            <Eye className="mb-0.5 inline h-3 w-3 text-[#4fc3f7]" />{" "}
+            <span className="text-[#e8e8ec]">preview</span> button to view
+            the full file content, and a button to add it to your Setup.
           </p>
         </div>
       </div>
@@ -219,6 +225,14 @@ const pages: Page[] = [
           <span className="font-semibold text-[#e8e8ec]">filter pills</span>{" "}
           to show only enabled, disabled, or all items.
         </p>
+        <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+          <p className="text-[13px] text-[#b0b0b8]">
+            <Info className="mb-0.5 inline h-3 w-3 text-[#4fc3f7]" />{" "}
+            When adding an item that belongs to a{" "}
+            <span className="font-semibold text-[#e8e8ec]">group</span>,
+            you'll be asked whether to add just that item or the entire group.
+          </p>
+        </div>
       </div>
     ),
   },
@@ -244,6 +258,13 @@ const pages: Page[] = [
           </p>
         </div>
         <div className="flex flex-col gap-3">
+        <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
+          <p className="text-[13px] text-[#66bb6a]">
+            <span className="font-semibold">Tip:</span> On first launch, consider
+            saving your current setup to the Library — so you can always
+            restore it later.
+          </p>
+        </div>
           <StepRow
             step={1}
             text={
@@ -251,8 +272,9 @@ const pages: Page[] = [
                 <span className="font-semibold text-[#e8e8ec]">
                   Summary cards
                 </span>{" "}
-                at the top show how many agents, skills, and commands are
-                currently active vs. total.
+                at the top show how many items are active in your Setup.
+                Click a card to filter the list by category. Click again to
+                show all.
               </>
             }
           />
@@ -302,6 +324,15 @@ const pages: Page[] = [
               </>
             }
           />
+        </div>
+        <div className="rounded-lg border border-[#ffa726]/20 bg-[#ffa726]/5 px-4 py-3">
+          <p className="text-[13px] text-[#ffa726]">
+            <span className="font-semibold">Group Warning:</span> When you
+            disable an item that belongs to a named group, Orchestrarium will
+            warn you that it may affect other items in that group. You can
+            skip these warnings in{" "}
+            <Settings className="mb-0.5 inline h-3 w-3" /> Settings.
+          </p>
         </div>
       </div>
     ),
@@ -369,6 +400,9 @@ const pages: Page[] = [
           <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
             <Trash2 className="h-3 w-3 text-[#56565f]" /> Delete — remove a setup from the Library
           </div>
+          <div className="flex items-center gap-2 text-[12px] text-[#8a8a96]">
+            <Search className="h-3 w-3 text-[#56565f]" /> Search — quickly find a setup by name
+          </div>
         </div>
       </div>
     ),
@@ -389,6 +423,13 @@ const pages: Page[] = [
             <Settings className="mb-0.5 inline h-3 w-3" /> Settings at the
             bottom of the sidebar and turn on{" "}
             <span className="font-semibold">Advanced Features</span>.
+          </p>
+        </div>
+        <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
+          <p className="text-[13px] text-[#4fc3f7]">
+            <span className="font-semibold">Auto-import:</span> If you already
+            have a CLAUDE.md file, Orchestrarium automatically imports it as
+            a "Default" profile on first launch.
           </p>
         </div>
         <div className="flex flex-col gap-3">
@@ -428,6 +469,16 @@ const pages: Page[] = [
           />
           <StepRow
             step={4}
+            text={
+              <>
+                <Eye className="mb-0.5 inline h-3.5 w-3.5 text-[#a78bfa]" />{" "}
+                <span className="font-semibold text-[#8a8a96]">Preview</span>{" "}
+                — view profile content without editing.
+              </>
+            }
+          />
+          <StepRow
+            step={5}
             text={
               <>
                 <span className="inline-flex items-center gap-1 font-semibold text-[#8a8a96]">
@@ -531,6 +582,14 @@ const pages: Page[] = [
             <Kbd>.md</Kbd> files manually, the UI updates automatically.
           </p>
         </div>
+        <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+          <p className="text-[13px] text-[#b0b0b8]">
+            <Settings className="mb-0.5 inline h-3 w-3 text-[#56565f]" />{" "}
+            <span className="font-semibold text-[#c0c0c8]">Settings</span>{" "}
+            — enable Advanced Features (CLAUDE.md profiles) and optionally
+            skip group notifications for experienced users.
+          </p>
+        </div>
       </div>
     ),
   },
@@ -538,6 +597,7 @@ const pages: Page[] = [
 
 export function TutorialModal({ onClose }: TutorialModalProps) {
   const [currentPage, setCurrentPage] = useState(0);
+  useEscapeKey(useCallback(onClose, [onClose]));
   const page = pages[currentPage];
   const isFirst = currentPage === 0;
   const isLast = currentPage === pages.length - 1;

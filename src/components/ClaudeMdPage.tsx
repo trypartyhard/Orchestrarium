@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Play, Pause, Trash2, Plus, Pencil, Save, X, FileText, Copy, Eye } from "lucide-react";
 import { useAppStore } from "../lib/store";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 export function ClaudeMdPage() {
   const profiles = useAppStore((s) => s.claudeProfiles);
@@ -22,6 +23,11 @@ export function ClaudeMdPage() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [previewProfile, setPreviewProfile] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+
+  useEscapeKey(useCallback(() => {
+    if (previewProfile) { setPreviewProfile(null); setPreviewContent(null); }
+    else if (showCreateModal) { setShowCreateModal(false); setCreateName(""); }
+  }, [previewProfile, showCreateModal]));
 
   useEffect(() => {
     loadProfiles();

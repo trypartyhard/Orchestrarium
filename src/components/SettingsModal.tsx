@@ -1,14 +1,19 @@
 import { X } from "lucide-react";
 import { useAppStore } from "../lib/store";
 import { Toggle } from "./Toggle";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 interface SettingsModalProps {
   onClose: () => void;
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
+  useEscapeKey(onClose);
+
   const advancedFeatures = useAppStore((s) => s.advancedFeatures);
   const setAdvancedFeatures = useAppStore((s) => s.setAdvancedFeatures);
+  const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
+  const setSkipGroupWarnings = useAppStore((s) => s.setSkipGroupWarnings);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -38,6 +43,20 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <Toggle
               enabled={advancedFeatures}
               onToggle={() => setAdvancedFeatures(!advancedFeatures)}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-[#e8e8ec]">
+                Skip Group Notifications
+              </span>
+              <span className="text-[12px] text-[#56565f]">
+                Recommended for experienced users only
+              </span>
+            </div>
+            <Toggle
+              enabled={skipGroupWarnings}
+              onToggle={() => setSkipGroupWarnings(!skipGroupWarnings)}
             />
           </div>
         </div>

@@ -49,6 +49,7 @@ interface AppStore {
   setupIds: Set<string>;
   setupIdsInitialized: boolean;
   advancedFeatures: boolean;
+  skipGroupWarnings: boolean;
   claudeProfiles: ClaudeMdProfile[];
 
   loadSection: (section: Section) => Promise<void>;
@@ -71,6 +72,7 @@ interface AppStore {
   exportSetup: (name: string) => Promise<string>;
   importSetup: (json: string) => Promise<void>;
   setAdvancedFeatures: (enabled: boolean) => void;
+  setSkipGroupWarnings: (enabled: boolean) => void;
   loadClaudeProfiles: () => Promise<void>;
   createClaudeProfile: (name: string, fromCurrent: boolean) => Promise<void>;
   activateClaudeProfile: (name: string) => Promise<void>;
@@ -115,6 +117,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setupIds: new Set<string>(),
   setupIdsInitialized: false,
   advancedFeatures: localStorage.getItem("cam-advanced-features") === "true",
+  skipGroupWarnings: localStorage.getItem("cam-skip-group-warnings") === "true",
   claudeProfiles: [],
 
   loadSection: async (section) => {
@@ -384,6 +387,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ activeSection: "setup" });
       get().loadSection("setup");
     }
+  },
+
+  setSkipGroupWarnings: (enabled) => {
+    localStorage.setItem("cam-skip-group-warnings", String(enabled));
+    set({ skipGroupWarnings: enabled });
   },
 
   loadClaudeProfiles: async () => {
