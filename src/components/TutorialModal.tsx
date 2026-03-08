@@ -320,10 +320,20 @@ const pages: Page[] = [
                 <span className="inline-flex items-center gap-1 font-semibold text-red-400">
                   <XCircle className="inline h-3 w-3" /> Clear Setup
                 </span>{" "}
-                removes all items at once and disables everything.
+                removes all items at once and disables everything. Your saved
+                setups in Library are not affected.
               </>
             }
           />
+        </div>
+        <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+          <p className="text-[13px] text-[#b0b0b8]">
+            <span className="font-semibold text-[#c0c0c8]">Active setup:</span>{" "}
+            When you activate a setup from the Library, its name appears under
+            the header. If you make any changes (toggle items, add or remove),
+            an <span className="font-semibold text-[#4fc3f7]">Update</span> button
+            appears — click it to save the changes back to that setup.
+          </p>
         </div>
         <div className="rounded-lg border border-[#ffa726]/20 bg-[#ffa726]/5 px-4 py-3">
           <p className="text-[13px] text-[#ffa726]">
@@ -383,6 +393,7 @@ const pages: Page[] = [
                   <Play className="inline h-3 w-3" /> Activate
                 </span>{" "}
                 to apply a setup — it enables/disables items on disk to match.
+                The setup name will appear in the Setup section header.
               </>
             }
           />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Save, Trash2, ChevronDown, ChevronRight, XCircle, AlertTriangle } from "lucide-react";
+import { Save, Trash2, ChevronDown, ChevronRight, XCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "../lib/store";
 import { SummaryCard } from "./SummaryCard";
@@ -20,7 +20,10 @@ export function SetupPage() {
   const toggleItem = useAppStore((s) => s.toggleItem);
   const toggleGroup = useAppStore((s) => s.toggleGroup);
   const createSetup = useAppStore((s) => s.createSetup);
+  const updateSetup = useAppStore((s) => s.updateSetup);
   const clearSetup = useAppStore((s) => s.clearSetup);
+  const activeSetup = useAppStore((s) => s.activeSetup);
+  const setupSnapshot = useAppStore((s) => s.setupSnapshot);
   const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -85,6 +88,20 @@ export function SetupPage() {
     commands: { enabled: setupCommands.filter((c) => c.enabled).length, total: setupCommands.length },
   };
 
+  // Detect if setup has been modified compared to snapshot
+  const setupModified = useMemo(() => {
+    if (!activeSetup || setupSnapshot.length === 0) return false;
+    const currentEntries = setupItems.map((i) => ({ id: i.id, enabled: i.enabled }));
+    if (currentEntries.length !== setupSnapshot.length) return true;
+    const snapshotMap = new Map(setupSnapshot.map((e) => [e.id, e.enabled]));
+    return currentEntries.some((e) => snapshotMap.get(e.id) !== e.enabled || !snapshotMap.has(e.id));
+  }, [activeSetup, setupSnapshot, setupItems]);
+
+  const handleUpdateSetup = async () => {
+    await updateSetup();
+    showToast(`Setup "${activeSetup}" updated`);
+  };
+
   const handleToggleWithWarning = (item: AgentInfo) => {
     const group = item.group || "Custom";
     // Only warn when disabling, in a named group with multiple items, and not yet warned
@@ -144,9 +161,26 @@ export function SetupPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] font-semibold text-[#e8e8ec]">Setup</h1>
-          <p className="text-[13px] text-[#7a7a88]">
-            Your current active configuration at a glance
-          </p>
+          <div className="flex h-[22px] items-center gap-2">
+            {activeSetup ? (
+              <>
+                <p className="max-w-[260px] truncate text-[13px] text-[#7a7a88]">
+                  Active setup: <span className="font-semibold text-[#4fc3f7]">{activeSetup}</span>
+                </p>
+                <button
+                  onClick={handleUpdateSetup}
+                  className={`flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-2.5 py-1 text-[11px] font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20 ${setupModified ? "visible" : "invisible"}`}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Update
+                </button>
+              </>
+            ) : (
+              <p className="text-[13px] text-[#7a7a88]">
+                Your current active configuration at a glance
+              </p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {setupItems.length > 0 && (
@@ -332,6 +366,8 @@ export function SetupPage() {
             <p className="text-[13px] leading-relaxed text-[#8a8a96]">
               Are you sure you want to clear the current setup? All items will
               be disabled and removed from the list.
+              <br /><br />
+              <span className="text-[#7a7a88]">This only clears the current view. Your saved setups in Library remain available to activate.</span>
             </p>
             <div className="flex justify-end gap-2">
               <button

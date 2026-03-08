@@ -39,10 +39,10 @@ describe("validateName", () => {
     expect(validateName("LPT9")).not.toBeNull();
   });
 
-  it("rejects names longer than 100 characters", () => {
-    const longName = "a".repeat(101);
+  it("rejects names longer than 30 characters", () => {
+    const longName = "a".repeat(31);
     expect(validateName(longName)).not.toBeNull();
-    expect(validateName("a".repeat(100))).toBeNull();
+    expect(validateName("a".repeat(30))).toBeNull();
   });
 
   it("allows hyphens and underscores", () => {

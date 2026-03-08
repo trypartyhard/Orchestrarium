@@ -21,7 +21,7 @@ export function SummaryCard({ title, enabled, total, color, active, onClick }: S
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-[#7a7a88]">{title}</span>
         <div className="flex items-baseline gap-2 whitespace-nowrap">
-          <span className="text-[32px] font-bold leading-none" style={{ color }}>
+          <span className="min-w-[2ch] text-right text-[32px] font-bold leading-none" style={{ color }}>
             {enabled}
           </span>
           <span className="text-sm text-[#56565f]">/ {total} total</span>

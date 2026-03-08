@@ -35,6 +35,11 @@ interface ToastState {
   visible: boolean;
 }
 
+interface SetupSnapshotEntry {
+  id: string;
+  enabled: boolean;
+}
+
 interface AppStore {
   agents: AgentInfo[];
   skills: AgentInfo[];
@@ -46,6 +51,7 @@ interface AppStore {
   toast: ToastState;
   setups: Setup[];
   activeSetup: string | null;
+  setupSnapshot: SetupSnapshotEntry[];
   setupIds: Set<string>;
   setupIdsInitialized: boolean;
   advancedFeatures: boolean;
@@ -69,6 +75,7 @@ interface AppStore {
   createSetup: (name: string) => Promise<void>;
   deleteSetup: (name: string) => Promise<void>;
   applySetup: (name: string) => Promise<void>;
+  updateSetup: () => Promise<void>;
   exportSetup: (name: string) => Promise<string>;
   importSetup: (json: string) => Promise<void>;
   setAdvancedFeatures: (enabled: boolean) => void;
@@ -114,6 +121,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   toast: { message: "", visible: false },
   setups: [],
   activeSetup: null,
+  setupSnapshot: [],
   setupIds: new Set<string>(),
   setupIdsInitialized: false,
   advancedFeatures: localStorage.getItem("cam-advanced-features") === "true",
@@ -297,7 +305,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
     const empty = new Set<string>();
     persistSetupIds(empty);
-    set({ setupIds: empty, activeSetup: null });
+    set({ setupIds: empty, activeSetup: null, setupSnapshot: [] });
     await clearActiveSetupIPC();
     await get().silentReload("setup");
   },
@@ -324,6 +332,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await createSetupIPC(name);
       await get().loadSetups();
+      // Save snapshot so Update button works immediately
+      const all = [...get().agents, ...get().skills, ...get().commands];
+      const ids = get().setupIds;
+      const snapshot = all
+        .filter((i) => ids.has(i.id))
+        .map((i) => ({ id: i.id, enabled: i.enabled }));
+      set({ setupSnapshot: snapshot });
     } catch {
       get().showToast("Failed to create setup");
     }
@@ -353,12 +368,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const all = [...agents, ...skills, ...commands];
       const ids = new Set(all.filter((i) => i.enabled).map((i) => i.id));
       persistSetupIds(ids);
-      set({ setupIds: ids });
+      // Save snapshot of applied state for change detection
+      const snapshot = all
+        .filter((i) => ids.has(i.id))
+        .map((i) => ({ id: i.id, enabled: i.enabled }));
+      set({ setupIds: ids, setupSnapshot: snapshot });
       if (failures.length > 0) {
         get().showToast(`Setup applied with ${failures.length} error(s)`);
       }
     } catch {
       get().showToast("Failed to apply setup");
+    }
+  },
+
+  updateSetup: async () => {
+    const name = get().activeSetup;
+    if (!name) return;
+    try {
+      // Delete old and create new snapshot with same name
+      await deleteSetupIPC(name);
+      await createSetupIPC(name);
+      await get().loadSetups();
+      // Update snapshot to current state
+      const all = [...get().agents, ...get().skills, ...get().commands];
+      const snapshot = all
+        .filter((i) => get().setupIds.has(i.id))
+        .map((i) => ({ id: i.id, enabled: i.enabled }));
+      set({ setupSnapshot: snapshot });
+    } catch {
+      get().showToast("Failed to update setup");
     }
   },
 
