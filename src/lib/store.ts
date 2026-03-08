@@ -96,7 +96,7 @@ const sectionLoaders = {
   commands: getCommands,
 } as const;
 
-const SETUP_IDS_KEY = "cam-setup-ids";
+const SETUP_IDS_KEY = "orchestrarium-setup-ids";
 
 function loadPersistedSetupIds(): Set<string> {
   try {
@@ -124,8 +124,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setupSnapshot: [],
   setupIds: new Set<string>(),
   setupIdsInitialized: false,
-  advancedFeatures: localStorage.getItem("cam-advanced-features") === "true",
-  skipGroupWarnings: localStorage.getItem("cam-skip-group-warnings") === "true",
+  advancedFeatures: localStorage.getItem("orchestrarium-advanced-features") === "true",
+  skipGroupWarnings: localStorage.getItem("orchestrarium-skip-group-warnings") === "true",
   claudeProfiles: [],
 
   loadSection: async (section) => {
@@ -426,7 +426,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setAdvancedFeatures: (enabled) => {
-    localStorage.setItem("cam-advanced-features", String(enabled));
+    localStorage.setItem("orchestrarium-advanced-features", String(enabled));
     set({ advancedFeatures: enabled });
     if (!enabled && get().activeSection === "claude-md") {
       set({ activeSection: "setup" });
@@ -435,7 +435,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setSkipGroupWarnings: (enabled) => {
-    localStorage.setItem("cam-skip-group-warnings", String(enabled));
+    localStorage.setItem("orchestrarium-skip-group-warnings", String(enabled));
     set({ skipGroupWarnings: enabled });
   },
 

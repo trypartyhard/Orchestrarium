@@ -36,7 +36,7 @@ pub fn get_setups_path() -> PathBuf {
     dirs::home_dir()
         .expect("Could not find home directory")
         .join(".claude")
-        .join("cam")
+        .join("orchestrarium")
         .join("setups.json")
 }
 
