@@ -55,13 +55,13 @@ pub fn parse_agent_file(path: &Path, section: &str, enabled: bool, scope: &str) 
     let matter = Matter::<YAML>::new();
     let parsed: gray_matter::ParsedEntity = match matter.parse(&content) {
         Ok(p) => p,
-        Err(_) => return make_fallback(false),
+        Err(_) => return make_fallback(true),
     };
 
     let map = match parsed.data {
         Some(ref pod) => match pod.as_hashmap() {
             Ok(m) => m,
-            Err(_) => return make_fallback(false),
+            Err(_) => return make_fallback(true),
         },
         None => return make_fallback(false),
     };
@@ -152,6 +152,7 @@ mod tests {
         assert_eq!(info.section, "skills");
         assert!(!info.enabled);
         assert_eq!(info.scope, "project");
+        assert!(info.invalid_config);
     }
 
     #[test]

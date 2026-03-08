@@ -244,7 +244,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  setActiveSection: (section) => set({ activeSection: section }),
+  setActiveSection: (section) => set({ activeSection: section, searchQuery: "", filter: "all" }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilter: (filter) => set({ filter }),
 
@@ -323,6 +323,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
         getActiveSetupIPC(),
       ]);
       set({ setups, activeSetup });
+      // Restore snapshot from saved setup if active and snapshot is empty
+      if (activeSetup && get().setupSnapshot.length === 0) {
+        const active = setups.find((s) => s.name === activeSetup);
+        if (active) {
+          set({ setupSnapshot: active.entries.map((e) => ({ id: e.id, enabled: e.enabled })) });
+        }
+      }
     } catch {
       get().showToast("Failed to load setups");
     }

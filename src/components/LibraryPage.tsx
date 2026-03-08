@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal, Search } from "lucide-react";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { useAppStore } from "../lib/store";
+import { useEscapeKey } from "../lib/useEscapeKey";
 
 export function LibraryPage() {
   const setups = useAppStore((s) => s.setups);
@@ -17,6 +18,11 @@ export function LibraryPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [importConflict, setImportConflict] = useState<{ name: string; json: string } | null>(null);
+
+  useEscapeKey(useCallback(() => {
+    if (importConflict) setImportConflict(null);
+  }, [importConflict]));
 
   const filteredSetups = search
     ? setups.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
@@ -59,12 +65,30 @@ export function LibraryPage() {
     if (!filePath) return;
     try {
       const content = await readTextFile(filePath);
+      const parsed = JSON.parse(content);
+      const name = parsed.name as string;
+      if (name && setups.some((s) => s.name === name)) {
+        setImportConflict({ name, json: content });
+        return;
+      }
       await importSetup(content);
       await loadSetups();
       showToast("Setup imported");
     } catch {
       showToast("Failed to import setup");
     }
+  };
+
+  const confirmImport = async () => {
+    if (!importConflict) return;
+    try {
+      await importSetup(importConflict.json);
+      await loadSetups();
+      showToast(`Setup "${importConflict.name}" replaced`);
+    } catch {
+      showToast("Failed to import setup");
+    }
+    setImportConflict(null);
   };
 
   function countBySection(entries: { id: string; enabled: boolean }[]) {
@@ -233,6 +257,34 @@ export function LibraryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Import conflict modal */}
+      {importConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex w-80 flex-col gap-4 rounded-lg border border-[#3a3a42] bg-[#27272c] p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-[#e8e8ec]">
+              Setup Already Exists
+            </h3>
+            <p className="text-[13px] leading-relaxed text-[#8a8a96]">
+              A setup named <span className="font-semibold text-[#e8e8ec]">"{importConflict.name}"</span> already exists. Do you want to replace it?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setImportConflict(null)}
+                className="rounded px-3 py-1.5 text-xs text-[#8a8a96] hover:text-[#e8e8ec]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmImport}
+                className="rounded bg-[#4fc3f7] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#4fc3f7]/80"
+              >
+                Replace
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

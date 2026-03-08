@@ -8,6 +8,29 @@ use crate::scanner;
 use crate::state::AppState;
 use crate::toggler;
 
+const WINDOWS_RESERVED: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL",
+    "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+fn validate_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Name cannot be empty".into());
+    }
+    if trimmed.len() > 30 {
+        return Err("Name is too long (max 30 characters)".into());
+    }
+    if !trimmed.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_') {
+        return Err("Only letters, numbers, spaces, hyphens and underscores allowed".into());
+    }
+    if WINDOWS_RESERVED.iter().any(|r| r.eq_ignore_ascii_case(trimmed)) {
+        return Err("This name is reserved by Windows".into());
+    }
+    Ok(())
+}
+
 /// Determine scope from a file path.
 /// Files under the user's home .claude directory are "global", others are "project".
 fn detect_scope(path: &str) -> &'static str {
@@ -155,6 +178,7 @@ pub async fn create_setup(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<crate::setups::Setup, String> {
+    validate_name(&name)?;
     let agents = state.agents.lock().await.clone();
     let skills = state.skills.lock().await.clone();
     let commands = state.commands.lock().await.clone();
@@ -269,6 +293,7 @@ pub async fn list_claude_profiles() -> Result<Vec<claude_md::ClaudeMdProfile>, S
 #[tauri::command]
 #[specta::specta]
 pub async fn create_claude_profile(name: String, from_current: bool) -> Result<(), String> {
+    validate_name(&name)?;
     claude_md::create_profile(&name, from_current)
 }
 
@@ -305,5 +330,6 @@ pub async fn save_claude_profile(name: String, content: String) -> Result<(), St
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_claude_profile(old_name: String, new_name: String) -> Result<(), String> {
+    validate_name(&new_name)?;
     claude_md::rename_profile(&old_name, &new_name)
 }
