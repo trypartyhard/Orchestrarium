@@ -7,6 +7,7 @@ import { Toggle } from "./Toggle";
 import { ColorDot } from "./ColorDot";
 import type { AgentInfo } from "../bindings";
 import { useEscapeKey } from "../lib/useEscapeKey";
+import { validateName } from "../lib/validateName";
 
 export function SetupPage() {
   const agents = useAppStore((s) => s.agents);
@@ -105,8 +106,10 @@ export function SetupPage() {
     setPendingToggle(null);
   };
 
+  const saveNameError = validateName(saveName);
+
   const handleSave = async () => {
-    if (!saveName.trim()) return;
+    if (!saveName.trim() || saveNameError) return;
     await createSetup(saveName.trim());
     showToast(`Setup "${saveName.trim()}" saved to Library`);
     setSaveName("");
@@ -362,6 +365,9 @@ export function SetupPage() {
               autoFocus
               className="h-9 rounded border border-[#3a3a42] bg-[#1e1e23] px-3 text-sm text-[#e8e8ec] outline-none focus:border-[#4fc3f7]"
             />
+            {saveNameError && (
+              <p className="text-[11px] text-red-400">{saveNameError}</p>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => {
@@ -374,7 +380,7 @@ export function SetupPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={!saveName.trim()}
+                disabled={!saveName.trim() || !!saveNameError}
                 className="rounded bg-[#4fc3f7] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#4fc3f7]/80 disabled:opacity-40"
               >
                 Save

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Play, Pause, Trash2, Plus, Pencil, Save, X, FileText, Copy, Eye } from "lucide-react";
 import { useAppStore } from "../lib/store";
 import { useEscapeKey } from "../lib/useEscapeKey";
+import { validateName } from "../lib/validateName";
 
 export function ClaudeMdPage() {
   const profiles = useAppStore((s) => s.claudeProfiles);
@@ -33,8 +34,10 @@ export function ClaudeMdPage() {
     loadProfiles();
   }, []);
 
+  const createNameError = validateName(createName);
+
   const handleCreate = async () => {
-    if (!createName.trim()) return;
+    if (!createName.trim() || createNameError) return;
     await createProfile(createName.trim(), createFromCurrent);
     showToast(`Profile "${createName.trim()}" created`);
     setCreateName("");
@@ -317,6 +320,9 @@ export function ClaudeMdPage() {
               autoFocus
               className="h-9 rounded border border-[#3a3a42] bg-[#1e1e23] px-3 text-sm text-[#e8e8ec] outline-none focus:border-[#a78bfa]"
             />
+            {createNameError && (
+              <p className="text-[11px] text-red-400">{createNameError}</p>
+            )}
             <label className="flex items-center gap-2.5 cursor-pointer">
               <button
                 onClick={() => setCreateFromCurrent(!createFromCurrent)}
@@ -346,7 +352,7 @@ export function ClaudeMdPage() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={!createName.trim()}
+                disabled={!createName.trim() || !!createNameError}
                 className="rounded bg-[#a78bfa] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#a78bfa]/80 disabled:opacity-40"
               >
                 Create
