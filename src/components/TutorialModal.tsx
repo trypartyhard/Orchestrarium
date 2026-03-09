@@ -105,7 +105,7 @@ const pages: Page[] = [
           </p>
         </div>
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
-          The app has <span className="font-semibold text-[#e8e8ec]">five sections</span>,
+          The app has <span className="font-semibold text-[#e8e8ec]">six sections</span>,
           accessible from the sidebar on the left:
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -114,12 +114,8 @@ const pages: Page[] = [
           <IconBox icon={Sparkles} color="#66bb6a" label="Skills" />
           <IconBox icon={Terminal} color="#ffa726" label="Commands" />
           <IconBox icon={Library} color="#a78bfa" label="Library" />
-          <IconBox icon={FileText} color="#a78bfa" label="CLAUDE.md ✦" />
+          <IconBox icon={FileText} color="#a78bfa" label="CLAUDE.md" />
         </div>
-        <p className="text-[11px] text-[#56565f]">
-          ✦ CLAUDE.md appears when Advanced Features are enabled in{" "}
-          <Settings className="mb-0.5 inline h-3 w-3" /> Settings.
-        </p>
         <p className="text-[12px] text-[#56565f]">
           Let's go through each one.
         </p>
@@ -428,14 +424,6 @@ const pages: Page[] = [
           rules, style, and instructions. Orchestrarium lets you manage
           multiple profiles and switch between them.
         </p>
-        <div className="rounded-lg border border-[#a78bfa]/20 bg-[#a78bfa]/5 px-4 py-3">
-          <p className="text-[13px] text-[#a78bfa]">
-            <span className="font-semibold">How to enable:</span> Open{" "}
-            <Settings className="mb-0.5 inline h-3 w-3" /> Settings at the
-            bottom of the sidebar and turn on{" "}
-            <span className="font-semibold">Advanced Features</span>.
-          </p>
-        </div>
         <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
           <p className="text-[13px] text-[#4fc3f7]">
             <span className="font-semibold">Auto-import:</span> If you already

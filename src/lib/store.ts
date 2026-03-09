@@ -61,7 +61,6 @@ interface AppStore {
   setupSnapshot: SetupSnapshotEntry[];
   setupIds: Set<string>;
   setupIdsInitialized: boolean;
-  advancedFeatures: boolean;
   skipGroupWarnings: boolean;
   claudeProfiles: ClaudeMdProfile[];
 
@@ -85,7 +84,6 @@ interface AppStore {
   updateSetup: () => Promise<void>;
   exportSetup: (name: string) => Promise<string>;
   importSetup: (json: string) => Promise<void>;
-  setAdvancedFeatures: (enabled: boolean) => void;
   setSkipGroupWarnings: (enabled: boolean) => void;
   loadClaudeProfiles: () => Promise<void>;
   createClaudeProfile: (name: string, fromCurrent: boolean) => Promise<void>;
@@ -131,7 +129,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setupSnapshot: [],
   setupIds: new Set<string>(),
   setupIdsInitialized: false,
-  advancedFeatures: localStorage.getItem("orchestrarium-advanced-features") === "true",
   skipGroupWarnings: localStorage.getItem("orchestrarium-skip-group-warnings") === "true",
   claudeProfiles: [],
 
@@ -448,15 +445,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadSetups();
     } catch {
       get().showToast("Failed to import setup", "error");
-    }
-  },
-
-  setAdvancedFeatures: (enabled) => {
-    localStorage.setItem("orchestrarium-advanced-features", String(enabled));
-    set({ advancedFeatures: enabled });
-    if (!enabled && get().activeSection === "claude-md") {
-      set({ activeSection: "setup" });
-      get().loadSection("setup");
     }
   },
 

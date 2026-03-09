@@ -10,8 +10,6 @@ interface SettingsModalProps {
 export function SettingsModal({ onClose }: SettingsModalProps) {
   useEscapeKey(onClose);
 
-  const advancedFeatures = useAppStore((s) => s.advancedFeatures);
-  const setAdvancedFeatures = useAppStore((s) => s.setAdvancedFeatures);
   const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
   const setSkipGroupWarnings = useAppStore((s) => s.setSkipGroupWarnings);
 
@@ -32,20 +30,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
         {/* Content */}
         <div className="flex flex-col gap-4 px-6 py-5">
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-[#e8e8ec]">
-                Advanced Features
-              </span>
-              <span className="text-[12px] text-[#56565f]">
-                Enable CLAUDE.md profile manager
-              </span>
-            </div>
-            <Toggle
-              enabled={advancedFeatures}
-              onToggle={() => setAdvancedFeatures(!advancedFeatures)}
-            />
-          </div>
           <div className="flex items-center justify-between">
             <div className="flex flex-col gap-0.5">
               <span className="text-sm font-medium text-[#e8e8ec]">

@@ -4,25 +4,21 @@ import { useAppStore, type Section } from "../lib/store";
 import { TutorialModal } from "./TutorialModal";
 import { SettingsModal } from "./SettingsModal";
 
-const baseSections: { key: Section; label: string; icon: typeof Bot }[] = [
+const sections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "setup", label: "Setup", icon: LayoutDashboard },
   { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
   { key: "commands", label: "Commands", icon: Terminal },
   { key: "library", label: "Library", icon: Library },
+  { key: "claude-md", label: "CLAUDE.md", icon: FileText },
 ];
 
 export function Sidebar() {
   const activeSection = useAppStore((s) => s.activeSection);
   const setActiveSection = useAppStore((s) => s.setActiveSection);
   const loadSection = useAppStore((s) => s.loadSection);
-  const advancedFeatures = useAppStore((s) => s.advancedFeatures);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-
-  const sections = advancedFeatures
-    ? [...baseSections, { key: "claude-md" as Section, label: "CLAUDE.md", icon: FileText }]
-    : baseSections;
 
   const handleClick = (section: Section) => {
     setActiveSection(section);
