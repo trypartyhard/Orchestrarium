@@ -26,6 +26,7 @@ import {
   readClaudeProfile as readClaudeProfileIPC,
   saveClaudeProfile as saveClaudeProfileIPC,
   renameClaudeProfile as renameClaudeProfileIPC,
+  copyItemToProject as copyItemToProjectIPC,
 } from "../bindings";
 
 export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
@@ -101,6 +102,7 @@ interface AppStore {
   readClaudeProfile: (name: string) => Promise<string>;
   saveClaudeProfile: (name: string, content: string) => Promise<void>;
   renameClaudeProfile: (oldName: string, newName: string) => Promise<void>;
+  copyItemToProject: (item: AgentInfo) => Promise<void>;
 }
 
 const sectionLoaders = {
@@ -109,18 +111,25 @@ const sectionLoaders = {
   commands: getCommands,
 } as const;
 
-const SETUP_IDS_KEY = "orchestrarium-setup-ids";
+function setupIdsKey(): string {
+  const ctx = localStorage.getItem("orchestrarium-context") || "global";
+  if (ctx === "project") {
+    const proj = localStorage.getItem("orchestrarium-project-dir") || "";
+    return `orchestrarium-setup-ids:project:${proj}`;
+  }
+  return "orchestrarium-setup-ids:global";
+}
 
 function loadPersistedSetupIds(): Set<string> {
   try {
-    const raw = localStorage.getItem(SETUP_IDS_KEY);
+    const raw = localStorage.getItem(setupIdsKey());
     if (raw) return new Set(JSON.parse(raw));
   } catch { /* ignore */ }
   return new Set<string>();
 }
 
 function persistSetupIds(ids: Set<string>) {
-  localStorage.setItem(SETUP_IDS_KEY, JSON.stringify([...ids]));
+  localStorage.setItem(setupIdsKey(), JSON.stringify([...ids]));
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -163,7 +172,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   reloadForContext: async () => {
-    set({ searchQuery: "", filter: "all", setupIdsInitialized: false });
+    // Reset setup state for new context — load context-scoped setupIds
+    const ids = loadPersistedSetupIds();
+    set({
+      searchQuery: "", filter: "all",
+      setupIdsInitialized: false,
+      setupIds: ids,
+      activeSetup: null,
+      setupSnapshot: [],
+    });
     const section = get().activeSection;
     await get().loadSection(section);
     // Also reload setups for the new context
@@ -314,15 +331,29 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!get().setupIdsInitialized) {
       const persisted = loadPersistedSetupIds();
       // First run: use persisted if available, otherwise seed from enabled items
+      // In project context, only seed from project-local items (not global)
+      const ctx = get().activeContext;
+      const seedItems = ctx === "project"
+        ? all.filter((i) => i.enabled && i.scope === "project")
+        : all.filter((i) => i.enabled);
+      // In project context, only keep persisted IDs whose items are project-local
+      // (global-only items can't be toggled from project, so stale IDs must be pruned)
+      const projectLocalIds = ctx === "project"
+        ? new Set(all.filter((i) => i.scope === "project").map((i) => i.id))
+        : allIds;
       const ids = persisted.size > 0
-        ? new Set([...persisted].filter((id) => allIds.has(id)))
-        : new Set(all.filter((i) => i.enabled).map((i) => i.id));
+        ? new Set([...persisted].filter((id) => projectLocalIds.has(id)))
+        : new Set(seedItems.map((i) => i.id));
       persistSetupIds(ids);
       set({ setupIds: ids, setupIdsInitialized: true });
     } else {
       // Subsequent runs: only prune deleted items, never auto-add
       const current = get().setupIds;
-      const next = new Set([...current].filter((id) => allIds.has(id)));
+      const ctx = get().activeContext;
+      const validIds = ctx === "project"
+        ? new Set(all.filter((i) => i.scope === "project").map((i) => i.id))
+        : allIds;
+      const next = new Set([...current].filter((id) => validIds.has(id)));
       if (next.size !== current.size) {
         persistSetupIds(next);
         set({ setupIds: next });
@@ -397,7 +428,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   createSetup: async (name) => {
     try {
-      await createSetupIPC(name);
+      await createSetupIPC(name, [...get().setupIds]);
       await get().loadSetups();
       // Save snapshot so Update button works immediately
       const all = [...get().agents, ...get().skills, ...get().commands];
@@ -456,7 +487,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!name) return;
     try {
       // create_setup does upsert (retain + push), so no separate delete needed
-      await createSetupIPC(name);
+      await createSetupIPC(name, [...get().setupIds]);
       await get().loadSetups();
       // Update snapshot to current state
       const all = [...get().agents, ...get().skills, ...get().commands];
@@ -565,6 +596,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       await renameClaudeProfileIPC(oldName, newName);
       await get().loadClaudeProfiles();
+    } catch (e) {
+      get().showToast(String(e), "error");
+      throw undefined;
+    }
+  },
+
+  copyItemToProject: async (item) => {
+    try {
+      await copyItemToProjectIPC(item.path, item.section);
+      // Reload the section to pick up the new project-local copy
+      const section = item.section as "agents" | "skills" | "commands";
+      const loader = sectionLoaders[section];
+      const data = await loader();
+      set({ [section]: data } as Partial<AppStore>);
+      // Auto-add to setup
+      get().addToSetup(item.id);
     } catch (e) {
       get().showToast(String(e), "error");
       throw undefined;

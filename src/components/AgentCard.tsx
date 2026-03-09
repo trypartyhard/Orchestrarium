@@ -14,8 +14,15 @@ interface AgentCardProps {
 export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
   const setupIds = useAppStore((s) => s.setupIds);
   const addToSetup = useAppStore((s) => s.addToSetup);
+  const activeContext = useAppStore((s) => s.activeContext);
+  const copyItemToProject = useAppStore((s) => s.copyItemToProject);
+  const showToast = useAppStore((s) => s.showToast);
   const inSetup = setupIds.has(item.id);
   const [showPreview, setShowPreview] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  // In project context, global items need to be copied first (unless already in setup)
+  const isGlobalInProject = activeContext === "project" && item.scope === "global" && !inSetup;
 
   const handleAdd = () => {
     if (onAddToSetup) {
@@ -23,6 +30,15 @@ export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
     } else {
       addToSetup(item.id);
     }
+  };
+
+  const handleCopyToProject = async () => {
+    setCopying(true);
+    try {
+      await copyItemToProject(item);
+      showToast(`"${item.name}" added to project`);
+    } catch { /* error toast shown by store */ }
+    setCopying(false);
   };
 
   return (
@@ -37,8 +53,8 @@ export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
               {item.name}
             </span>
             <Badge
-              text={item.scope}
-              variant={item.scope === "global" ? "info" : "project"}
+              text={activeContext === "project" ? "project" : item.scope}
+              variant={activeContext === "project" ? "project" : "info"}
             />
             {item.invalid_config && <Badge text="invalid config" variant="error" />}
           </div>
@@ -54,7 +70,16 @@ export function AgentCard({ item, onAddToSetup }: AgentCardProps) {
         >
           <Eye className="h-3.5 w-3.5" />
         </button>
-        {inSetup ? (
+        {isGlobalInProject ? (
+          <button
+            onClick={handleCopyToProject}
+            disabled={copying}
+            className="flex items-center gap-1.5 rounded-lg border border-[#4fc3f7]/30 bg-[#4fc3f7]/10 px-3 py-1.5 text-xs font-medium text-[#4fc3f7] transition-colors hover:bg-[#4fc3f7]/20 disabled:opacity-40"
+          >
+            <Plus className="h-3 w-3" />
+            {copying ? "Adding..." : "Add to Setup"}
+          </button>
+        ) : inSetup ? (
           <span className="flex items-center gap-1.5 rounded-lg border border-[#00d4aa]/30 bg-[#00d4aa]/10 px-3 py-1.5 text-xs font-medium text-[#00d4aa]">
             <Check className="h-3 w-3" />
             In Setup

@@ -97,8 +97,8 @@ export async function clearActiveSetup(): Promise<void> {
   return await invoke<void>("clear_active_setup");
 }
 
-export async function createSetup(name: string): Promise<Setup> {
-  return await invoke<Setup>("create_setup", { name });
+export async function createSetup(name: string, itemIds: string[]): Promise<Setup> {
+  return await invoke<Setup>("create_setup", { name, itemIds });
 }
 
 export async function deleteSetup(name: string): Promise<void> {
@@ -131,6 +131,10 @@ export async function readSetupFile(path: string): Promise<string> {
 
 export async function readItemContent(path: string): Promise<string> {
   return await invoke<string>("read_item_content", { path });
+}
+
+export async function copyItemToProject(sourcePath: string, section: string): Promise<AgentInfo> {
+  return await invoke<AgentInfo>("copy_item_to_project", { sourcePath, section });
 }
 
 // ─── CLAUDE.md profile bindings ─────────────────────────────────

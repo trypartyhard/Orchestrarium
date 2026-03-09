@@ -164,12 +164,38 @@ pub async fn get_project_dir(state: State<'_, AppState>) -> Result<Option<String
 
 // ─── Scan commands ──────────────────────────────────────────────
 
+/// In project context, scan project items first, then append global items
+/// that don't already exist in the project (by filename).
+async fn scan_section_merged(state: &State<'_, AppState>, section: &str) -> Result<Vec<AgentInfo>, String> {
+    let ctx = state.active_context.lock().await.clone();
+    let base = state.active_claude_dir().await?;
+    let scope = if ctx == "project" { "project" } else { "global" };
+
+    let mut items = scanner::scan_section(&base, section, scope);
+
+    // In project context, also include global items not already present
+    if ctx == "project" {
+        let project_filenames: std::collections::HashSet<String> =
+            items.iter().map(|i| i.filename.clone()).collect();
+        let global_items = scanner::scan_section(&state.global_dir, section, "global");
+        for item in global_items {
+            if !project_filenames.contains(&item.filename) {
+                items.push(item);
+            }
+        }
+        // Reassign groups after merging so grouping reflects the full combined list
+        crate::groups::assign_groups(&mut items);
+        // Sort by filename for stable ordering (prevents items jumping after copy-to-project)
+        items.sort_by(|a, b| a.filename.cmp(&b.filename));
+    }
+
+    Ok(items)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let base = state.active_claude_dir().await?;
-    let scope = state.active_scope().await;
-    let agents = scanner::scan_section(&base, "agents", scope);
+    let agents = scan_section_merged(&state, "agents").await?;
     let mut lock = state.agents.lock().await;
     *lock = agents.clone();
     Ok(agents)
@@ -178,9 +204,7 @@ pub async fn get_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, St
 #[tauri::command]
 #[specta::specta]
 pub async fn get_skills(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let base = state.active_claude_dir().await?;
-    let scope = state.active_scope().await;
-    let skills = scanner::scan_section(&base, "skills", scope);
+    let skills = scan_section_merged(&state, "skills").await?;
     let mut lock = state.skills.lock().await;
     *lock = skills.clone();
     Ok(skills)
@@ -189,12 +213,50 @@ pub async fn get_skills(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, St
 #[tauri::command]
 #[specta::specta]
 pub async fn get_commands(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let base = state.active_claude_dir().await?;
-    let scope = state.active_scope().await;
-    let cmds = scanner::scan_section(&base, "commands", scope);
+    let cmds = scan_section_merged(&state, "commands").await?;
     let mut lock = state.commands.lock().await;
     *lock = cmds.clone();
     Ok(cmds)
+}
+
+/// Copy a global item (.md file) into the project's .claude/{section}/ directory.
+/// Returns the new AgentInfo after copy.
+#[tauri::command]
+#[specta::specta]
+pub async fn copy_item_to_project(
+    state: State<'_, AppState>,
+    source_path: String,
+    section: String,
+) -> Result<AgentInfo, String> {
+    // Validate source is in global dir
+    let source = std::path::PathBuf::from(&source_path);
+    let global_canonical = dunce::canonicalize(&state.global_dir).unwrap_or_else(|_| state.global_dir.clone());
+    let source_canonical = dunce::canonicalize(&source).map_err(|e| format!("Invalid path: {}", e))?;
+    if !source_canonical.starts_with(&global_canonical) {
+        return Err("Source must be a global item".into());
+    }
+
+    // Get project dir
+    let project_claude = state.active_claude_dir().await?;
+    let ctx = state.active_context.lock().await.clone();
+    if ctx != "project" {
+        return Err("Must be in project context".into());
+    }
+
+    let filename = source.file_name().ok_or("No filename")?;
+    let target_dir = project_claude.join(&section);
+    std::fs::create_dir_all(&target_dir).map_err(|e| format!("Failed to create dir: {}", e))?;
+
+    let target = target_dir.join(filename);
+    if target.exists() {
+        return Err(format!("Item already exists in project: {}", filename.to_string_lossy()));
+    }
+
+    std::fs::copy(&source, &target).map_err(|e| format!("Failed to copy: {}", e))?;
+
+    // Parse and return the new item
+    let agent = crate::parser::parse_agent_file(&target, &section, true, "project");
+    Ok(agent)
 }
 
 // ─── Toggle commands ────────────────────────────────────────────
@@ -326,6 +388,7 @@ pub async fn clear_active_setup(state: State<'_, AppState>) -> Result<(), String
 pub async fn create_setup(
     state: State<'_, AppState>,
     name: String,
+    item_ids: Vec<String>,
 ) -> Result<crate::setups::Setup, String> {
     validate_name(&name)?;
     let base = state.active_claude_dir().await?;
@@ -334,7 +397,10 @@ pub async fn create_setup(
     let skills = state.skills.lock().await.clone();
     let commands = state.commands.lock().await.clone();
 
-    let entries = crate::setups::snapshot_current(&agents, &skills, &commands);
+    let all_entries = crate::setups::snapshot_current(&agents, &skills, &commands);
+    // Only include items that are in the provided setupIds
+    let id_set: std::collections::HashSet<&str> = item_ids.iter().map(|s| s.as_str()).collect();
+    let entries: Vec<_> = all_entries.into_iter().filter(|e| id_set.contains(e.id.as_str())).collect();
     let setup = crate::setups::Setup {
         name: name.clone(),
         created_at: chrono::Utc::now().to_rfc3339(),

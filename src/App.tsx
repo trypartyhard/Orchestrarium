@@ -31,24 +31,25 @@ function App() {
     // Restore context from localStorage
     const savedContext = localStorage.getItem("orchestrarium-context") || "global";
     const savedProject = localStorage.getItem("orchestrarium-project-dir");
-    const restoreContext = async () => {
+    const restoreAndLoad = async () => {
       try {
-        await setActiveContext(savedContext);
         if (savedProject) {
+          // Set project dir first so backend knows the path before context switch
           await setProjectDir(savedProject).catch(() => {
-            // Project path no longer exists, fall back to global
             localStorage.removeItem("orchestrarium-project-dir");
             useAppStore.setState({ projectDir: null, activeContext: "global" });
-            setActiveContext("global").catch(() => {});
           });
         }
+        await setActiveContext(
+          savedProject ? savedContext : "global"
+        );
       } catch { /* ignore */ }
-    };
-    restoreContext();
 
-    // Initial load
-    loadSection(activeSection);
-    loadSetups();
+      // Load after context is fully restored
+      loadSection(activeSection);
+      loadSetups();
+    };
+    restoreAndLoad();
 
     // Signal frontend is ready for watcher events
     frontendReady().catch(() => {});

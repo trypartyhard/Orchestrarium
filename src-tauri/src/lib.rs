@@ -35,6 +35,7 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::write_setup_file,
         commands::read_setup_file,
         commands::read_item_content,
+        commands::copy_item_to_project,
         commands::auto_import_claude_md,
         commands::list_claude_profiles,
         commands::create_claude_profile,

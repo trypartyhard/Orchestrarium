@@ -10,14 +10,13 @@ interface AgentGroupProps {
   items: AgentInfo[];
 }
 
-const sessionWarnedGroups = new Set<string>();
-
 export function AgentGroup({ groupName, items }: AgentGroupProps) {
   const [expanded, setExpanded] = useState(true);
   const setupIds = useAppStore((s) => s.setupIds);
   const addToSetup = useAppStore((s) => s.addToSetup);
+  const activeContext = useAppStore((s) => s.activeContext);
+  const copyItemToProject = useAppStore((s) => s.copyItemToProject);
   const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
-  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(() => new Set(sessionWarnedGroups));
   const [pendingItem, setPendingItem] = useState<AgentInfo | null>(null);
 
   useEscapeKey(useCallback(() => {
@@ -25,45 +24,48 @@ export function AgentGroup({ groupName, items }: AgentGroupProps) {
   }, [pendingItem]));
 
   const allInSetup = items.every((i) => setupIds.has(i.id));
-  const handleAddAll = (e: React.MouseEvent) => {
+
+  // Add item to setup, copying to project first if needed
+  const addItemToSetup = async (item: AgentInfo) => {
+    if (activeContext === "project" && item.scope === "global") {
+      try { await copyItemToProject(item); } catch { return; }
+    } else {
+      addToSetup(item.id);
+    }
+  };
+
+  const handleAddAll = async (e: React.MouseEvent) => {
     e.stopPropagation();
     for (const item of items) {
       if (!setupIds.has(item.id)) {
-        addToSetup(item.id);
+        await addItemToSetup(item);
       }
     }
   };
 
   const handleAddToSetup = (item: AgentInfo) => {
     const group = item.group || "Custom";
-    if (group !== "Custom" && items.length > 1 && !skipGroupWarnings && !warnedGroups.has(group)) {
-      // Check if not all items are already in setup (adding individually)
+    if (group !== "Custom" && items.length > 1 && !skipGroupWarnings) {
       const othersInSetup = items.filter((i) => i.id !== item.id).every((i) => setupIds.has(i.id));
       if (!othersInSetup) {
         setPendingItem(item);
         return;
       }
     }
-    addToSetup(item.id);
+    addItemToSetup(item);
   };
 
   const confirmAddOne = () => {
     if (!pendingItem) return;
-    const group = pendingItem.group || "Custom";
-    sessionWarnedGroups.add(group);
-    setWarnedGroups((prev) => new Set(prev).add(group));
-    addToSetup(pendingItem.id);
+    addItemToSetup(pendingItem);
     setPendingItem(null);
   };
 
-  const confirmAddAll = () => {
+  const confirmAddAll = async () => {
     if (!pendingItem) return;
-    const group = pendingItem.group || "Custom";
-    sessionWarnedGroups.add(group);
-    setWarnedGroups((prev) => new Set(prev).add(group));
     for (const item of items) {
       if (!setupIds.has(item.id)) {
-        addToSetup(item.id);
+        await addItemToSetup(item);
       }
     }
     setPendingItem(null);

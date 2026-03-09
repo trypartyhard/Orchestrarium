@@ -77,7 +77,7 @@ export function Sidebar() {
             title={projectDir ? `Project: ${projectName}` : "Open project"}
             className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors ${
               activeContext === "project"
-                ? "bg-[#66bb6a]/20 text-[#66bb6a]"
+                ? "bg-[#ffa726]/20 text-[#ffa726]"
                 : "text-[#56565f] hover:text-[#8a8a96]"
             }`}
           >
@@ -88,7 +88,7 @@ export function Sidebar() {
           <div className="group relative flex w-full items-center justify-center px-1">
             <span
               title={projectDir}
-              className="max-w-[52px] truncate text-center text-[9px] text-[#66bb6a]"
+              className="max-w-[52px] truncate text-center text-[9px] text-[#ffa726]"
             >
               {projectName}
             </span>
@@ -142,7 +142,7 @@ export function Sidebar() {
             onClick={handleOpenProject}
             title="Change project folder"
             aria-label="Change project folder"
-            className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#66bb6a]"
+            className="group relative flex h-10 w-10 items-center justify-center rounded-[10px] text-[#6b6b78] transition-colors hover:bg-[#2a2a32] hover:text-[#ffa726]"
           >
             <FolderOpen className="h-[18px] w-[18px]" />
             <span className="pointer-events-none absolute left-14 z-50 hidden whitespace-nowrap rounded bg-[#3a3a42] px-2 py-1 text-xs text-[#e8e8ec] shadow-lg group-hover:block">

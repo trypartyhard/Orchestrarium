@@ -28,6 +28,7 @@ export function SetupPage() {
   const activeSetup = useAppStore((s) => s.activeSetup);
   const setupSnapshot = useAppStore((s) => s.setupSnapshot);
   const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
+  const activeContext = useAppStore((s) => s.activeContext);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
@@ -180,7 +181,7 @@ export function SetupPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-[22px] font-semibold text-[#e8e8ec]">Setup</h1>
+          <h1 className="text-[22px] font-semibold text-[#e8e8ec]">{activeContext === "project" ? "Setup Project" : "Setup"}</h1>
           <div className="flex h-[22px] items-center gap-2">
             {activeSetup ? (
               <>
