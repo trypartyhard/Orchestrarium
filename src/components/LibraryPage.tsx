@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal, Search } from "lucide-react";
 import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+import { writeSetupFile, readSetupFile } from "../bindings";
 import { useAppStore } from "../lib/store";
 import { useEscapeKey } from "../lib/useEscapeKey";
 
@@ -54,7 +54,7 @@ export function LibraryPage() {
     });
     if (filePath) {
       try {
-        await writeTextFile(filePath, json);
+        await writeSetupFile(filePath, json);
         showToast(`Setup "${name}" exported`);
       } catch {
         showToast("Failed to export file", "error");
@@ -68,7 +68,7 @@ export function LibraryPage() {
     });
     if (!filePath) return;
     try {
-      const content = await readTextFile(filePath);
+      const content = await readSetupFile(filePath);
       const parsed = JSON.parse(content);
       const name = parsed.name as string;
       if (name && setups.some((s) => s.name === name)) {

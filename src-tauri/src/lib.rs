@@ -28,6 +28,8 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::apply_setup,
         commands::export_setup,
         commands::import_setup,
+        commands::write_setup_file,
+        commands::read_setup_file,
         commands::read_item_content,
         commands::auto_import_claude_md,
         commands::list_claude_profiles,
@@ -55,14 +57,8 @@ pub fn export_bindings() {
 pub fn run() {
     let builder = make_builder();
 
-    #[cfg(debug_assertions)]
-    builder
-        .export(
-            specta_typescript::Typescript::new()
-                .bigint(specta_typescript::BigIntExportBehavior::Number),
-            "../src/bindings.ts",
-        )
-        .expect("Failed to export TypeScript bindings");
+    // Note: bindings are maintained manually in src/bindings.ts
+    // Run `cargo test export_bindings` to regenerate if needed
 
     let base_dir = dirs::home_dir()
         .ok_or("Could not find home directory. Please ensure HOME or USERPROFILE is set.")

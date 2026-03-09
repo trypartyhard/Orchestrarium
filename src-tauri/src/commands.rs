@@ -319,6 +319,31 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
     Ok(setup)
 }
 
+// ─── Setup file I/O (for dialog-selected paths outside FS scope) ─
+
+#[tauri::command]
+#[specta::specta]
+pub async fn write_setup_file(path: String, content: String) -> Result<(), String> {
+    if !path.ends_with(".json") {
+        return Err("Only .json files are allowed".into());
+    }
+    std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {}", e))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_setup_file(path: String) -> Result<String, String> {
+    if !path.ends_with(".json") {
+        return Err("Only .json files are allowed".into());
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    if content.len() > 1_000_000 {
+        return Err("File too large (max 1MB)".into());
+    }
+    Ok(content)
+}
+
 // ─── File preview ───────────────────────────────────────────────
 
 #[tauri::command]
