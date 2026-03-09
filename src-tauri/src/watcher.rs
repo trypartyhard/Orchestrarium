@@ -58,7 +58,7 @@ pub fn start_watcher(
 
                     // Check if any event involves .md files
                     let has_md = events.iter().any(|e| {
-                        matches!(e.kind, DebouncedEventKind::Any)
+                        matches!(e.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous)
                             && e.path
                                 .extension()
                                 .map_or(false, |ext| ext == "md")

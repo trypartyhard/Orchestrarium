@@ -246,6 +246,22 @@ pub async fn apply_setup(
 ) -> Result<Vec<String>, String> {
     state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
 
+    let result = apply_setup_inner(&state, &name).await;
+
+    // Always schedule unsuppress, even on error
+    let watcher_state = state.watcher_state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
+    });
+
+    result
+}
+
+async fn apply_setup_inner(
+    state: &State<'_, AppState>,
+    name: &str,
+) -> Result<Vec<String>, String> {
     let mut file = crate::setups::load_setups()?;
     let setup = file
         .setups
@@ -257,7 +273,7 @@ pub async fn apply_setup(
     let failures = crate::setups::apply_setup_entries(&setup.entries, &state.base_dir)?;
 
     // Mark as active
-    file.active = Some(name);
+    file.active = Some(name.to_string());
     crate::setups::save_setups(&file)?;
 
     // Refresh cached state
@@ -265,12 +281,6 @@ pub async fn apply_setup(
     *state.agents.lock().await = agents;
     *state.skills.lock().await = skills;
     *state.commands.lock().await = commands;
-
-    let watcher_state = state.watcher_state.clone();
-    tokio::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
-    });
 
     Ok(failures)
 }
