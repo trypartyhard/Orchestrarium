@@ -53,7 +53,7 @@ export function LibraryPage() {
         await writeTextFile(filePath, json);
         showToast(`Setup "${name}" exported`);
       } catch {
-        showToast("Failed to export file");
+        showToast("Failed to export file", "error");
       }
     }
   };
@@ -75,7 +75,7 @@ export function LibraryPage() {
       await loadSetups();
       showToast("Setup imported");
     } catch {
-      showToast("Failed to import setup");
+      showToast("Failed to import setup", "error");
     }
   };
 
@@ -86,7 +86,7 @@ export function LibraryPage() {
       await loadSetups();
       showToast(`Setup "${importConflict.name}" replaced`);
     } catch {
-      showToast("Failed to import setup");
+      showToast("Failed to import setup", "error");
     }
     setImportConflict(null);
   };

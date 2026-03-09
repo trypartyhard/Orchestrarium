@@ -19,7 +19,7 @@ fn validate_name(name: &str) -> Result<(), String> {
     if trimmed.is_empty() {
         return Err("Name cannot be empty".into());
     }
-    if trimmed.len() > 30 {
+    if trimmed.chars().count() > 30 {
         return Err("Name is too long (max 30 characters)".into());
     }
     if !trimmed.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_') {
@@ -218,6 +218,8 @@ pub async fn apply_setup(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<String>, String> {
+    state.watcher_state.suppressed.store(true, Ordering::SeqCst);
+
     let mut file = crate::setups::load_setups()?;
     let setup = file
         .setups
@@ -237,6 +239,12 @@ pub async fn apply_setup(
     *state.agents.lock().await = agents;
     *state.skills.lock().await = skills;
     *state.commands.lock().await = commands;
+
+    let watcher_state = state.watcher_state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        watcher_state.suppressed.store(false, Ordering::SeqCst);
+    });
 
     Ok(failures)
 }
@@ -258,6 +266,7 @@ pub async fn export_setup(name: String) -> Result<String, String> {
 pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> {
     let setup: crate::setups::Setup =
         serde_json::from_str(&json).map_err(|e| format!("Invalid JSON: {}", e))?;
+    validate_name(&setup.name)?;
 
     let mut file = crate::setups::load_setups()?;
     // Replace if same name exists
@@ -273,7 +282,14 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
 #[tauri::command]
 #[specta::specta]
 pub async fn read_item_content(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+    let canonical = std::fs::canonicalize(&path)
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let claude_dir = home.join(".claude");
+    if !canonical.starts_with(&claude_dir) {
+        return Err("Access denied: only files inside ~/.claude/ can be read".into());
+    }
+    std::fs::read_to_string(&canonical).map_err(|e| format!("Failed to read file: {}", e))
 }
 
 // ─── CLAUDE.md profile commands ─────────────────────────────────

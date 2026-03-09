@@ -24,11 +24,7 @@ pub fn start_watcher(
     for section in &sections {
         let dir = base_dir.join(section);
         if dir.exists() {
-            dirs_to_watch.push(dir.clone());
-            let disabled = dir.join(".disabled");
-            if disabled.exists() {
-                dirs_to_watch.push(disabled);
-            }
+            dirs_to_watch.push(dir);
         }
     }
 
@@ -42,7 +38,7 @@ pub fn start_watcher(
         for dir in &dirs_to_watch {
             let _ = debouncer
                 .watcher()
-                .watch(dir, notify::RecursiveMode::NonRecursive);
+                .watch(dir, notify::RecursiveMode::Recursive);
         }
 
         loop {

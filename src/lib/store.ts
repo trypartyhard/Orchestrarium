@@ -30,9 +30,16 @@ export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
 
+// Guard against double-click: tracks item IDs currently being toggled
+const togglingIds = new Set<string>();
+
+// Toast auto-hide timer
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
 interface ToastState {
   message: string;
   visible: boolean;
+  type: "success" | "error";
 }
 
 interface SetupSnapshotEntry {
@@ -65,7 +72,7 @@ interface AppStore {
   setActiveSection: (section: Section) => void;
   setSearchQuery: (query: string) => void;
   setFilter: (filter: Filter) => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, type?: "success" | "error") => void;
   hideToast: () => void;
   syncSetupIds: () => void;
   addToSetup: (id: string) => void;
@@ -118,7 +125,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   searchQuery: "",
   filter: "all",
   loading: false,
-  toast: { message: "", visible: false },
+  toast: { message: "", visible: false, type: "success" },
   setups: [],
   activeSetup: null,
   setupSnapshot: [],
@@ -151,7 +158,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch {
       set({ loading: false });
-      get().showToast(`Failed to load ${section}`);
+      get().showToast(`Failed to load ${section}`, "error");
     }
   },
 
@@ -179,6 +186,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   toggleItem: async (item) => {
+    if (togglingIds.has(item.id)) return;
+    togglingIds.add(item.id);
+
     const section = item.section as "agents" | "skills" | "commands";
     const newEnabled = !item.enabled;
 
@@ -205,7 +215,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
             ),
           }) as Partial<AppStore>,
       );
-      get().showToast(`Failed to toggle ${item.name}`);
+      get().showToast(`Failed to toggle ${item.name}`, "error");
+    } finally {
+      togglingIds.delete(item.id);
     }
   },
 
@@ -213,9 +225,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const section = items[0]?.section as "agents" | "skills" | "commands";
     if (!section) return;
 
-    // Filter to only items that need toggling
-    const toToggle = items.filter((i) => i.enabled !== enable);
+    // Filter to only items that need toggling and not already in-flight
+    const toToggle = items.filter((i) => i.enabled !== enable && !togglingIds.has(i.id));
     if (toToggle.length === 0) return;
+
+    for (const i of toToggle) togglingIds.add(i.id);
 
     // Optimistic update all
     set(
@@ -236,11 +250,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (failures.length > 0) {
         get().showToast(
           `Failed to toggle ${failures.length} item${failures.length > 1 ? "s" : ""}`,
+          "error",
         );
       }
     } catch {
       await get().silentReload(section);
-      get().showToast("Failed to toggle group");
+      get().showToast("Failed to toggle group", "error");
+    } finally {
+      for (const i of toToggle) togglingIds.delete(i.id);
     }
   },
 
@@ -251,28 +268,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
   syncSetupIds: () => {
     const all = [...get().agents, ...get().skills, ...get().commands];
     if (all.length === 0) return;
-    const persisted = loadPersistedSetupIds();
+    const allIds = new Set(all.map((i) => i.id));
     if (!get().setupIdsInitialized) {
-      // First run: use persisted or seed from enabled items
-      const ids = persisted.size > 0 ? persisted : new Set(all.filter((i) => i.enabled).map((i) => i.id));
-      // Also add any enabled items not yet in persisted set (new files)
-      for (const item of all) {
-        if (item.enabled) ids.add(item.id);
-      }
+      const persisted = loadPersistedSetupIds();
+      // First run: use persisted if available, otherwise seed from enabled items
+      const ids = persisted.size > 0
+        ? new Set([...persisted].filter((id) => allIds.has(id)))
+        : new Set(all.filter((i) => i.enabled).map((i) => i.id));
       persistSetupIds(ids);
       set({ setupIds: ids, setupIdsInitialized: true });
     } else {
-      // Subsequent runs: add any new enabled items not yet tracked
+      // Subsequent runs: only prune deleted items, never auto-add
       const current = get().setupIds;
-      let changed = false;
-      const next = new Set(current);
-      for (const item of all) {
-        if (item.enabled && !next.has(item.id)) {
-          next.add(item.id);
-          changed = true;
-        }
-      }
-      if (changed) {
+      const next = new Set([...current].filter((id) => allIds.has(id)));
+      if (next.size !== current.size) {
         persistSetupIds(next);
         set({ setupIds: next });
       }
@@ -310,11 +319,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().silentReload("setup");
   },
 
-  showToast: (message) => {
-    set({ toast: { message, visible: true } });
-    setTimeout(() => get().hideToast(), 4000);
+  showToast: (message, type = "success") => {
+    if (toastTimer) clearTimeout(toastTimer);
+    set({ toast: { message, visible: true, type } });
+    toastTimer = setTimeout(() => get().hideToast(), 4000);
   },
-  hideToast: () => set({ toast: { message: "", visible: false } }),
+  hideToast: () => set({ toast: { message: "", visible: false, type: "success" } }),
 
   loadSetups: async () => {
     try {
@@ -334,7 +344,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
       }
     } catch {
-      get().showToast("Failed to load setups");
+      get().showToast("Failed to load setups", "error");
     }
   },
 
@@ -350,7 +360,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         .map((i) => ({ id: i.id, enabled: i.enabled }));
       set({ setupSnapshot: snapshot });
     } catch {
-      get().showToast("Failed to create setup");
+      get().showToast("Failed to create setup", "error");
     }
   },
 
@@ -359,7 +369,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await deleteSetupIPC(name);
       await get().loadSetups();
     } catch {
-      get().showToast("Failed to delete setup");
+      get().showToast("Failed to delete setup", "error");
     }
   },
 
@@ -384,10 +394,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         .map((i) => ({ id: i.id, enabled: i.enabled }));
       set({ setupIds: ids, setupSnapshot: snapshot });
       if (failures.length > 0) {
-        get().showToast(`Setup applied with ${failures.length} error(s)`);
+        get().showToast(`Setup applied with ${failures.length} error(s)`, "error");
       }
     } catch {
-      get().showToast("Failed to apply setup");
+      get().showToast("Failed to apply setup", "error");
     }
   },
 
@@ -395,8 +405,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const name = get().activeSetup;
     if (!name) return;
     try {
-      // Delete old and create new snapshot with same name
-      await deleteSetupIPC(name);
+      // create_setup does upsert (retain + push), so no separate delete needed
       await createSetupIPC(name);
       await get().loadSetups();
       // Update snapshot to current state
@@ -406,7 +415,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         .map((i) => ({ id: i.id, enabled: i.enabled }));
       set({ setupSnapshot: snapshot });
     } catch {
-      get().showToast("Failed to update setup");
+      get().showToast("Failed to update setup", "error");
     }
   },
 
@@ -414,7 +423,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       return await exportSetupIPC(name);
     } catch {
-      get().showToast("Failed to export setup");
+      get().showToast("Failed to export setup", "error");
       return "";
     }
   },
@@ -424,7 +433,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await importSetupIPC(json);
       await get().loadSetups();
     } catch {
-      get().showToast("Failed to import setup");
+      get().showToast("Failed to import setup", "error");
     }
   },
 
@@ -447,7 +456,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const profiles = await listClaudeProfilesIPC();
       set({ claudeProfiles: profiles });
     } catch {
-      get().showToast("Failed to load profiles");
+      get().showToast("Failed to load profiles", "error");
     }
   },
 
@@ -456,7 +465,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await createClaudeProfileIPC(name, fromCurrent);
       await get().loadClaudeProfiles();
     } catch (e) {
-      get().showToast(String(e));
+      get().showToast(String(e), "error");
     }
   },
 
@@ -465,7 +474,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await activateClaudeProfileIPC(name);
       await get().loadClaudeProfiles();
     } catch {
-      get().showToast("Failed to activate profile");
+      get().showToast("Failed to activate profile", "error");
     }
   },
 
@@ -474,7 +483,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await deactivateClaudeProfileIPC();
       await get().loadClaudeProfiles();
     } catch {
-      get().showToast("Failed to deactivate profile");
+      get().showToast("Failed to deactivate profile", "error");
     }
   },
 
@@ -483,7 +492,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await deleteClaudeProfileIPC(name);
       await get().loadClaudeProfiles();
     } catch {
-      get().showToast("Failed to delete profile");
+      get().showToast("Failed to delete profile", "error");
     }
   },
 
@@ -491,7 +500,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       return await readClaudeProfileIPC(name);
     } catch {
-      get().showToast("Failed to read profile");
+      get().showToast("Failed to read profile", "error");
       return "";
     }
   },
@@ -501,7 +510,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await saveClaudeProfileIPC(name, content);
       await get().loadClaudeProfiles();
     } catch {
-      get().showToast("Failed to save profile");
+      get().showToast("Failed to save profile", "error");
     }
   },
 
@@ -510,7 +519,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await renameClaudeProfileIPC(oldName, newName);
       await get().loadClaudeProfiles();
     } catch (e) {
-      get().showToast(String(e));
+      get().showToast(String(e), "error");
     }
   },
 }));
