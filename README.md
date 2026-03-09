@@ -128,6 +128,16 @@ I want you to know: **I don't speak English natively and I don't know how to cod
 
 Thank you for reading this far — for me, that's already a small victory and motivation to keep going.
 
+## Roadmap
+
+- **Project-level scope** — support `.claude/` directories inside projects, not just global `~/.claude/`
+- **MCP server management** — configure and toggle MCP servers
+- **Agent creator** — create new agents directly from the UI
+- **Content preview** — view full agent/skill content inline in the card
+- **Drag & drop import** — drag `.md` files into the app to install them
+
+Have an idea? [Open an issue](../../issues) — feedback and contributions are welcome.
+
 ## License
 
 MIT
