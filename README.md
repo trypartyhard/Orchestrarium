@@ -8,7 +8,9 @@ A visual desktop app to browse, organize, and toggle Claude Code agents, skills,
 
 *Built entirely through conversation with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), without writing a single line of code manually.*
 
-[![Windows](https://img.shields.io/badge/platform-Windows-blue?logo=windows)]()
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)]()
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)]()
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)]()
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri)]()
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -91,11 +93,14 @@ When disabling an item from an active group:
 
 ## Installation
 
-1. Download the latest `.exe` installer from [Releases](../../releases)
+1. Download the latest installer for your platform from [Releases](../../releases):
+   - **Windows:** `.exe` installer
+   - **macOS:** `.dmg` (Apple Silicon & Intel)
+   - **Linux:** `.deb` / `.AppImage`
 2. Run the installer
 3. Orchestrarium will auto-detect your `~/.claude/` directory
 
-> **Requirements:** Windows 10/11. WebView2 runtime (included in most Windows installations).
+> **Note:** macOS builds are unsigned. On first launch: right-click the app → Open → Open.
 
 ## How it works
 
