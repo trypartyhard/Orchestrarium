@@ -1,7 +1,7 @@
 {
   "productName": "Orchestrarium",
   "version": "0.2.0",
-  "identifier": "com.orchestrarium.app",
+  "identifier": "com.orchestrarium.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
