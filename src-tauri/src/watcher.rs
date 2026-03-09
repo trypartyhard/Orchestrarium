@@ -1,14 +1,15 @@
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-/// Tracks whether a self-initiated toggle is in progress.
-/// When true, watcher events are suppressed to prevent feedback loops.
+/// Tracks suppression count for self-initiated operations.
+/// Events are suppressed when count > 0, allowing concurrent operations
+/// without race conditions (unlike a simple boolean flag).
 pub struct WatcherState {
-    pub suppressed: AtomicBool,
+    pub suppress_count: AtomicU32,
 }
 
 /// Start watching ~/.claude/{agents,skills,commands} directories.
@@ -23,29 +24,35 @@ pub fn start_watcher(
 
     for section in &sections {
         let dir = base_dir.join(section);
-        if dir.exists() {
-            dirs_to_watch.push(dir);
-        }
+        // Ensure directory exists so watcher can monitor it from the start
+        let _ = std::fs::create_dir_all(&dir);
+        dirs_to_watch.push(dir);
     }
+
+    let (init_tx, init_rx) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let mut debouncer = new_debouncer(Duration::from_millis(300), tx)
-            .map_err(|e| format!("Failed to create debouncer: {}", e))
-            .unwrap();
+        let mut debouncer = match new_debouncer(Duration::from_millis(300), tx) {
+            Ok(d) => { let _ = init_tx.send(Ok(())); d }
+            Err(e) => { let _ = init_tx.send(Err(format!("Failed to create watcher: {}", e))); return; }
+        };
 
         for dir in &dirs_to_watch {
-            let _ = debouncer
+            if let Err(e) = debouncer
                 .watcher()
-                .watch(dir, notify::RecursiveMode::Recursive);
+                .watch(dir, notify::RecursiveMode::Recursive)
+            {
+                eprintln!("Warning: failed to watch {}: {}", dir.display(), e);
+            }
         }
 
         loop {
             match rx.recv() {
                 Ok(Ok(events)) => {
-                    // Skip if self-initiated toggle in progress
-                    if watcher_state.suppressed.load(Ordering::SeqCst) {
+                    // Skip if self-initiated operation in progress
+                    if watcher_state.suppress_count.load(Ordering::SeqCst) > 0 {
                         continue;
                     }
 
@@ -67,5 +74,5 @@ pub fn start_watcher(
         }
     });
 
-    Ok(())
+    init_rx.recv().map_err(|_| "Watcher thread failed to start".to_string())?
 }

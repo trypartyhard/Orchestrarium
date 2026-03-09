@@ -17,10 +17,7 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME/.claude/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DOWNLOAD/**" }
+        { "path": "$HOME/.claude/**" }
       ]
     },
     "dialog:default",

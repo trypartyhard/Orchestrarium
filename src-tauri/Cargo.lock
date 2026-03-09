@@ -2334,6 +2334,7 @@ version = "0.2.0"
 dependencies = [
  "chrono",
  "dirs",
+ "dunce",
  "gray_matter",
  "notify",
  "notify-debouncer-mini",

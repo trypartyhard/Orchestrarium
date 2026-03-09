@@ -9,29 +9,29 @@ pub struct ClaudeMdProfile {
 }
 
 /// Directory where profiles are stored.
-fn profiles_dir() -> PathBuf {
-    dirs::home_dir()
-        .expect("Could not find home directory")
+fn profiles_dir() -> Result<PathBuf, String> {
+    Ok(dirs::home_dir()
+        .ok_or("Could not find home directory")?
         .join(".claude")
         .join("orchestrarium")
-        .join("claude-profiles")
+        .join("claude-profiles"))
 }
 
 /// Path to the real CLAUDE.md
-fn claude_md_path() -> PathBuf {
-    dirs::home_dir()
-        .expect("Could not find home directory")
+fn claude_md_path() -> Result<PathBuf, String> {
+    Ok(dirs::home_dir()
+        .ok_or("Could not find home directory")?
         .join(".claude")
-        .join("CLAUDE.md")
+        .join("CLAUDE.md"))
 }
 
 /// State file tracking which profile is active
-fn active_profile_path() -> PathBuf {
-    profiles_dir().join(".active")
+fn active_profile_path() -> Result<PathBuf, String> {
+    Ok(profiles_dir()?.join(".active"))
 }
 
 fn read_active_name() -> Option<String> {
-    let path = active_profile_path();
+    let path = active_profile_path().ok()?;
     if path.exists() {
         std::fs::read_to_string(&path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
     } else {
@@ -40,12 +40,12 @@ fn read_active_name() -> Option<String> {
 }
 
 fn write_active_name(name: &str) -> Result<(), String> {
-    let path = active_profile_path();
+    let path = active_profile_path()?;
     std::fs::write(&path, name).map_err(|e| format!("Failed to write active profile: {}", e))
 }
 
 fn clear_active_name() -> Result<(), String> {
-    let path = active_profile_path();
+    let path = active_profile_path()?;
     if path.exists() {
         std::fs::remove_file(&path).map_err(|e| format!("Failed to clear active profile: {}", e))?;
     }
@@ -54,7 +54,7 @@ fn clear_active_name() -> Result<(), String> {
 
 /// List all saved profiles.
 pub fn list_profiles() -> Result<Vec<ClaudeMdProfile>, String> {
-    let dir = profiles_dir();
+    let dir = profiles_dir()?;
     if !dir.exists() {
         return Ok(Vec::new());
     }
@@ -87,7 +87,7 @@ pub fn list_profiles() -> Result<Vec<ClaudeMdProfile>, String> {
 
 /// Create a new profile. If from_current is true, copies current CLAUDE.md content.
 pub fn create_profile(name: &str, from_current: bool) -> Result<(), String> {
-    let dir = profiles_dir();
+    let dir = profiles_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Create dir error: {}", e))?;
 
     let profile_path = dir.join(format!("{}.md", name));
@@ -96,7 +96,7 @@ pub fn create_profile(name: &str, from_current: bool) -> Result<(), String> {
     }
 
     let content = if from_current {
-        let claude_md = claude_md_path();
+        let claude_md = claude_md_path()?;
         if claude_md.exists() {
             std::fs::read_to_string(&claude_md).map_err(|e| format!("Read error: {}", e))?
         } else {
@@ -112,21 +112,24 @@ pub fn create_profile(name: &str, from_current: bool) -> Result<(), String> {
 
 /// Activate a profile — copy its content to CLAUDE.md
 pub fn activate_profile(name: &str) -> Result<(), String> {
-    let profile_path = profiles_dir().join(format!("{}.md", name));
+    let profile_path = profiles_dir()?.join(format!("{}.md", name));
     if !profile_path.exists() {
         return Err(format!("Profile '{}' not found", name));
     }
 
     let content =
         std::fs::read_to_string(&profile_path).map_err(|e| format!("Read error: {}", e))?;
-    std::fs::write(claude_md_path(), &content).map_err(|e| format!("Write error: {}", e))?;
+    let claude_path = claude_md_path()?;
+    let claude_tmp = claude_path.with_extension("md.tmp");
+    std::fs::write(&claude_tmp, &content).map_err(|e| format!("Write error: {}", e))?;
+    std::fs::rename(&claude_tmp, &claude_path).map_err(|e| format!("Rename error: {}", e))?;
     write_active_name(name)?;
     Ok(())
 }
 
 /// Deactivate the current profile — clear CLAUDE.md contents but keep the profile.
 pub fn deactivate_profile() -> Result<(), String> {
-    let claude_md = claude_md_path();
+    let claude_md = claude_md_path()?;
     if claude_md.exists() {
         std::fs::write(&claude_md, "").map_err(|e| format!("Write error: {}", e))?;
     }
@@ -136,7 +139,7 @@ pub fn deactivate_profile() -> Result<(), String> {
 
 /// Delete a profile. If active, also clear CLAUDE.md.
 pub fn delete_profile(name: &str) -> Result<(), String> {
-    let profile_path = profiles_dir().join(format!("{}.md", name));
+    let profile_path = profiles_dir()?.join(format!("{}.md", name));
     if !profile_path.exists() {
         return Err(format!("Profile '{}' not found", name));
     }
@@ -144,7 +147,7 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
 
     // If this was the active profile, clear CLAUDE.md and active marker
     if read_active_name().as_deref() == Some(name) {
-        let claude_md = claude_md_path();
+        let claude_md = claude_md_path()?;
         if claude_md.exists() {
             std::fs::write(&claude_md, "").map_err(|e| format!("Clear CLAUDE.md error: {}", e))?;
         }
@@ -155,7 +158,7 @@ pub fn delete_profile(name: &str) -> Result<(), String> {
 
 /// Read profile content.
 pub fn read_profile(name: &str) -> Result<String, String> {
-    let profile_path = profiles_dir().join(format!("{}.md", name));
+    let profile_path = profiles_dir()?.join(format!("{}.md", name));
     if !profile_path.exists() {
         return Err(format!("Profile '{}' not found", name));
     }
@@ -164,15 +167,20 @@ pub fn read_profile(name: &str) -> Result<String, String> {
 
 /// Save profile content.
 pub fn save_profile(name: &str, content: &str) -> Result<(), String> {
-    let dir = profiles_dir();
+    let dir = profiles_dir()?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("Create dir error: {}", e))?;
 
     let profile_path = dir.join(format!("{}.md", name));
-    std::fs::write(&profile_path, content).map_err(|e| format!("Write error: {}", e))?;
+    let tmp_path = profile_path.with_extension("md.tmp");
+    std::fs::write(&tmp_path, content).map_err(|e| format!("Write error: {}", e))?;
+    std::fs::rename(&tmp_path, &profile_path).map_err(|e| format!("Rename error: {}", e))?;
 
     // If this is the active profile, also update CLAUDE.md
     if read_active_name().as_deref() == Some(name) {
-        std::fs::write(claude_md_path(), content).map_err(|e| format!("Write CLAUDE.md error: {}", e))?;
+        let claude_path = claude_md_path()?;
+        let claude_tmp = claude_path.with_extension("md.tmp");
+        std::fs::write(&claude_tmp, content).map_err(|e| format!("Write CLAUDE.md error: {}", e))?;
+        std::fs::rename(&claude_tmp, &claude_path).map_err(|e| format!("Rename CLAUDE.md error: {}", e))?;
     }
 
     Ok(())
@@ -180,7 +188,7 @@ pub fn save_profile(name: &str, content: &str) -> Result<(), String> {
 
 /// Auto-import existing CLAUDE.md on first run if no profiles exist yet.
 pub fn auto_import_if_needed() -> Result<bool, String> {
-    let dir = profiles_dir();
+    let dir = profiles_dir()?;
     // If profiles dir already exists and has .md files, skip
     if dir.exists() {
         let has_profiles = std::fs::read_dir(&dir)
@@ -195,7 +203,7 @@ pub fn auto_import_if_needed() -> Result<bool, String> {
         }
     }
 
-    let claude_md = claude_md_path();
+    let claude_md = claude_md_path()?;
     if !claude_md.exists() {
         return Ok(false);
     }
@@ -216,7 +224,7 @@ pub fn auto_import_if_needed() -> Result<bool, String> {
 
 /// Rename a profile.
 pub fn rename_profile(old_name: &str, new_name: &str) -> Result<(), String> {
-    let dir = profiles_dir();
+    let dir = profiles_dir()?;
     let old_path = dir.join(format!("{}.md", old_name));
     let new_path = dir.join(format!("{}.md", new_name));
 

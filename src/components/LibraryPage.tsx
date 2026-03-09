@@ -30,15 +30,19 @@ export function LibraryPage() {
 
   const handleApply = async (name: string) => {
     setApplying(name);
-    await applySetup(name);
-    showToast(`Setup "${name}" activated`);
+    try {
+      await applySetup(name);
+      showToast(`Setup "${name}" activated`);
+    } catch { /* error toast shown by store */ }
     setApplying(null);
   };
 
   const handleDelete = async (name: string) => {
-    await deleteSetup(name);
-    setConfirmDelete(null);
-    showToast(`Setup "${name}" deleted`);
+    try {
+      await deleteSetup(name);
+      setConfirmDelete(null);
+      showToast(`Setup "${name}" deleted`);
+    } catch { /* error toast shown by store */ }
   };
 
   const handleExport = async (name: string) => {

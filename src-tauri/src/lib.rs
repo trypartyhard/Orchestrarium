@@ -65,7 +65,8 @@ pub fn run() {
         .expect("Failed to export TypeScript bindings");
 
     let base_dir = dirs::home_dir()
-        .expect("Could not find home directory")
+        .ok_or("Could not find home directory. Please ensure HOME or USERPROFILE is set.")
+        .expect("Fatal: home directory not found")
         .join(".claude");
 
     tauri::Builder::default()

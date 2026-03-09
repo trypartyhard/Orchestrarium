@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Pause, Trash2, Plus, Pencil, Save, X, FileText, Copy, Eye } from "lucide-react";
 import { useAppStore } from "../lib/store";
 import { useEscapeKey } from "../lib/useEscapeKey";
@@ -24,11 +24,13 @@ export function ClaudeMdPage() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [previewProfile, setPreviewProfile] = useState<string | null>(null);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   useEscapeKey(useCallback(() => {
-    if (previewProfile) { setPreviewProfile(null); setPreviewContent(null); }
+    if (showDiscardConfirm) { setShowDiscardConfirm(false); }
+    else if (previewProfile) { setPreviewProfile(null); setPreviewContent(null); }
     else if (showCreateModal) { setShowCreateModal(false); setCreateName(""); }
-  }, [previewProfile, showCreateModal]));
+  }, [showDiscardConfirm, previewProfile, showCreateModal]));
 
   useEffect(() => {
     loadProfiles();
@@ -38,44 +40,60 @@ export function ClaudeMdPage() {
 
   const handleCreate = async () => {
     if (!createName.trim() || createNameError) return;
-    await createProfile(createName.trim(), createFromCurrent);
-    showToast(`Profile "${createName.trim()}" created`);
-    setCreateName("");
-    setCreateFromCurrent(true);
-    setShowCreateModal(false);
+    try {
+      await createProfile(createName.trim(), createFromCurrent);
+      showToast(`Profile "${createName.trim()}" created`);
+      setCreateName("");
+      setCreateFromCurrent(true);
+      setShowCreateModal(false);
+    } catch { /* error toast shown by store */ }
   };
 
   const handleActivate = async (name: string) => {
-    await activateProfile(name);
-    showToast(`Profile "${name}" activated`);
+    try {
+      await activateProfile(name);
+      showToast(`Profile "${name}" activated`);
+    } catch { /* error toast shown by store */ }
   };
 
   const handleDeactivate = async () => {
-    await deactivateProfile();
-    showToast("Profile deactivated");
+    try {
+      await deactivateProfile();
+      showToast("Profile deactivated");
+    } catch { /* error toast shown by store */ }
   };
 
   const handleDelete = async (name: string) => {
-    if (editingProfile === name) {
-      setEditingProfile(null);
-    }
-    await deleteProfile(name);
-    setConfirmDelete(null);
-    showToast(`Profile "${name}" deleted`);
+    try {
+      if (editingProfile === name) {
+        setEditingProfile(null);
+      }
+      await deleteProfile(name);
+      setConfirmDelete(null);
+      showToast(`Profile "${name}" deleted`);
+    } catch { /* error toast shown by store */ }
   };
 
+  const editRequestRef = useRef(0);
+
   const handleEdit = async (name: string) => {
-    const content = await readProfile(name);
-    setEditorContent(content);
+    const requestId = ++editRequestRef.current;
     setEditingProfile(name);
+    setEditorContent("");
     setEditorDirty(false);
+    const content = await readProfile(name);
+    // Discard stale response if another edit was requested
+    if (editRequestRef.current !== requestId) return;
+    setEditorContent(content);
   };
 
   const handleSave = async () => {
     if (!editingProfile) return;
-    await saveProfile(editingProfile, editorContent);
-    setEditorDirty(false);
-    showToast(`Profile "${editingProfile}" saved`);
+    try {
+      await saveProfile(editingProfile, editorContent);
+      setEditorDirty(false);
+      showToast(`Profile "${editingProfile}" saved`);
+    } catch { /* error toast shown by store */ }
   };
 
   const handlePreview = async (name: string) => {
@@ -86,8 +104,16 @@ export function ClaudeMdPage() {
 
   const handleCloseEditor = () => {
     if (editorDirty) {
-      if (!window.confirm("You have unsaved changes. Discard?")) return;
+      setShowDiscardConfirm(true);
+      return;
     }
+    setEditingProfile(null);
+    setEditorContent("");
+    setEditorDirty(false);
+  };
+
+  const confirmDiscard = () => {
+    setShowDiscardConfirm(false);
     setEditingProfile(null);
     setEditorContent("");
     setEditorDirty(false);
@@ -361,6 +387,29 @@ export function ClaudeMdPage() {
                 className="rounded bg-[#a78bfa] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#a78bfa]/80 disabled:opacity-40"
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDiscardConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-[340px] rounded-xl border border-[#2a2a32] bg-[#1e1e23] p-5 shadow-xl">
+            <h3 className="mb-2 text-sm font-semibold text-[#e0e0e6]">Unsaved changes</h3>
+            <p className="mb-4 text-xs text-[#8a8a96]">You have unsaved changes. Discard them?</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowDiscardConfirm(false)}
+                className="rounded-lg border border-[#2a2a32] px-3 py-1.5 text-xs text-[#8a8a96] transition-colors hover:bg-[#2a2a32]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDiscard}
+                className="rounded-lg bg-red-500/15 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/25"
+              >
+                Discard
               </button>
             </div>
           </div>

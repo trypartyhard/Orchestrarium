@@ -32,16 +32,16 @@ impl Default for SetupsFile {
     }
 }
 
-pub fn get_setups_path() -> PathBuf {
-    dirs::home_dir()
-        .expect("Could not find home directory")
+pub fn get_setups_path() -> Result<PathBuf, String> {
+    Ok(dirs::home_dir()
+        .ok_or("Could not find home directory")?
         .join(".claude")
         .join("orchestrarium")
-        .join("setups.json")
+        .join("setups.json"))
 }
 
 pub fn load_setups() -> Result<SetupsFile, String> {
-    let path = get_setups_path();
+    let path = get_setups_path()?;
     if !path.exists() {
         return Ok(SetupsFile::default());
     }
@@ -50,12 +50,15 @@ pub fn load_setups() -> Result<SetupsFile, String> {
 }
 
 pub fn save_setups(file: &SetupsFile) -> Result<(), String> {
-    let path = get_setups_path();
+    let path = get_setups_path()?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("Create dir error: {}", e))?;
     }
     let json = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| format!("Write error: {}", e))?;
+    // Atomic write: write to temp file, then rename
+    let tmp_path = path.with_extension("json.tmp");
+    std::fs::write(&tmp_path, json).map_err(|e| format!("Write error: {}", e))?;
+    std::fs::rename(&tmp_path, &path).map_err(|e| format!("Rename error: {}", e))?;
     Ok(())
 }
 

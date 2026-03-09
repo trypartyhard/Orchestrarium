@@ -14,6 +14,19 @@ const WINDOWS_RESERVED: &[&str] = &[
     "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
+/// Validate that a file path is inside ~/.claude/
+fn validate_path_in_claude_dir(path: &str) -> Result<(), String> {
+    let canonical = dunce::canonicalize(path)
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
+    let claude_dir = dunce::canonicalize(home.join(".claude"))
+        .unwrap_or_else(|_| home.join(".claude"));
+    if !canonical.starts_with(&claude_dir) {
+        return Err("Access denied: path must be inside ~/.claude/".into());
+    }
+    Ok(())
+}
+
 fn validate_name(name: &str) -> Result<(), String> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -79,8 +92,10 @@ pub async fn toggle_item(
     enable: bool,
     section: String,
 ) -> Result<AgentInfo, String> {
+    validate_path_in_claude_dir(&path)?;
+
     // Suppress watcher events during self-initiated toggle
-    state.watcher_state.suppressed.store(true, Ordering::SeqCst);
+    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
 
     let file_path = std::path::PathBuf::from(&path);
     let result = toggler::toggle(&file_path, enable);
@@ -89,15 +104,21 @@ pub async fn toggle_item(
     let watcher_state = state.watcher_state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppressed.store(false, Ordering::SeqCst);
+        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
     });
 
     let new_path = result?;
-    let scope = detect_scope(&new_path.to_string_lossy());
-    let agent = crate::parser::parse_agent_file(&new_path, &section, enable, scope);
 
-    // Update cached state
+    // Update cached state and return the item from the fresh scan
     let agents = scanner::scan_section(&state.base_dir, &section, "global");
+    let agent = agents
+        .iter()
+        .find(|a| a.path == new_path.to_string_lossy().replace('\\', "/"))
+        .cloned()
+        .unwrap_or_else(|| {
+            let scope = detect_scope(&new_path.to_string_lossy());
+            crate::parser::parse_agent_file(&new_path, &section, enable, scope)
+        });
     match section.as_str() {
         "agents" => *state.agents.lock().await = agents,
         "skills" => *state.skills.lock().await = agents,
@@ -115,7 +136,12 @@ pub async fn toggle_batch(
     state: State<'_, AppState>,
     items: Vec<ToggleBatchItem>,
 ) -> Result<Vec<String>, String> {
-    state.watcher_state.suppressed.store(true, Ordering::SeqCst);
+    // Validate all paths before starting
+    for item in &items {
+        validate_path_in_claude_dir(&item.path)?;
+    }
+
+    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
 
     let mut failures: Vec<String> = Vec::new();
     for item in &items {
@@ -134,7 +160,7 @@ pub async fn toggle_batch(
     let watcher_state = state.watcher_state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppressed.store(false, Ordering::SeqCst);
+        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
     });
 
     Ok(failures)
@@ -218,7 +244,7 @@ pub async fn apply_setup(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<String>, String> {
-    state.watcher_state.suppressed.store(true, Ordering::SeqCst);
+    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
 
     let mut file = crate::setups::load_setups()?;
     let setup = file
@@ -243,7 +269,7 @@ pub async fn apply_setup(
     let watcher_state = state.watcher_state.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppressed.store(false, Ordering::SeqCst);
+        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
     });
 
     Ok(failures)
@@ -264,9 +290,15 @@ pub async fn export_setup(name: String) -> Result<String, String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> {
+    if json.len() > 1_000_000 {
+        return Err("Import data too large (max 1MB)".into());
+    }
     let setup: crate::setups::Setup =
         serde_json::from_str(&json).map_err(|e| format!("Invalid JSON: {}", e))?;
     validate_name(&setup.name)?;
+    if setup.entries.len() > 10_000 {
+        return Err("Too many entries in setup (max 10,000)".into());
+    }
 
     let mut file = crate::setups::load_setups()?;
     // Replace if same name exists
@@ -282,14 +314,8 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
 #[tauri::command]
 #[specta::specta]
 pub async fn read_item_content(path: String) -> Result<String, String> {
-    let canonical = std::fs::canonicalize(&path)
-        .map_err(|e| format!("Invalid path: {}", e))?;
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-    let claude_dir = home.join(".claude");
-    if !canonical.starts_with(&claude_dir) {
-        return Err("Access denied: only files inside ~/.claude/ can be read".into());
-    }
-    std::fs::read_to_string(&canonical).map_err(|e| format!("Failed to read file: {}", e))
+    validate_path_in_claude_dir(&path)?;
+    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
 }
 
 // ─── CLAUDE.md profile commands ─────────────────────────────────
@@ -316,6 +342,7 @@ pub async fn create_claude_profile(name: String, from_current: bool) -> Result<(
 #[tauri::command]
 #[specta::specta]
 pub async fn activate_claude_profile(name: String) -> Result<(), String> {
+    validate_name(&name)?;
     claude_md::activate_profile(&name)
 }
 
@@ -328,24 +355,28 @@ pub async fn deactivate_claude_profile() -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_claude_profile(name: String) -> Result<(), String> {
+    validate_name(&name)?;
     claude_md::delete_profile(&name)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn read_claude_profile(name: String) -> Result<String, String> {
+    validate_name(&name)?;
     claude_md::read_profile(&name)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn save_claude_profile(name: String, content: String) -> Result<(), String> {
+    validate_name(&name)?;
     claude_md::save_profile(&name, &content)
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_claude_profile(old_name: String, new_name: String) -> Result<(), String> {
+    validate_name(&old_name)?;
     validate_name(&new_name)?;
     claude_md::rename_profile(&old_name, &new_name)
 }

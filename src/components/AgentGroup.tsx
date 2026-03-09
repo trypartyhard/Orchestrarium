@@ -10,12 +10,14 @@ interface AgentGroupProps {
   items: AgentInfo[];
 }
 
+const sessionWarnedGroups = new Set<string>();
+
 export function AgentGroup({ groupName, items }: AgentGroupProps) {
   const [expanded, setExpanded] = useState(true);
   const setupIds = useAppStore((s) => s.setupIds);
   const addToSetup = useAppStore((s) => s.addToSetup);
   const skipGroupWarnings = useAppStore((s) => s.skipGroupWarnings);
-  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(new Set());
+  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(() => new Set(sessionWarnedGroups));
   const [pendingItem, setPendingItem] = useState<AgentInfo | null>(null);
 
   useEscapeKey(useCallback(() => {
@@ -48,6 +50,7 @@ export function AgentGroup({ groupName, items }: AgentGroupProps) {
   const confirmAddOne = () => {
     if (!pendingItem) return;
     const group = pendingItem.group || "Custom";
+    sessionWarnedGroups.add(group);
     setWarnedGroups((prev) => new Set(prev).add(group));
     addToSetup(pendingItem.id);
     setPendingItem(null);
@@ -56,6 +59,7 @@ export function AgentGroup({ groupName, items }: AgentGroupProps) {
   const confirmAddAll = () => {
     if (!pendingItem) return;
     const group = pendingItem.group || "Custom";
+    sessionWarnedGroups.add(group);
     setWarnedGroups((prev) => new Set(prev).add(group));
     for (const item of items) {
       if (!setupIds.has(item.id)) {

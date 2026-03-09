@@ -11,18 +11,30 @@ pub fn toggle(path: &Path, enable: bool) -> Result<PathBuf, String> {
 
     let filename = path.file_name().ok_or("No filename")?;
     let parent = path.parent().ok_or("No parent dir")?;
+    let parent_name = parent.file_name().and_then(|n| n.to_str());
+    let in_disabled = parent_name == Some(".disabled");
 
     let target = if enable {
+        if !in_disabled {
+            return Err("File is already enabled".into());
+        }
         // Move from .disabled/ to parent's parent
         let grandparent = parent.parent().ok_or("No grandparent dir")?;
         grandparent.join(filename)
     } else {
+        if in_disabled {
+            return Err("File is already disabled".into());
+        }
         // Move to .disabled/ subdir
         let disabled_dir = parent.join(".disabled");
         fs::create_dir_all(&disabled_dir)
             .map_err(|e| format!("Failed to create .disabled/: {}", e))?;
         disabled_dir.join(filename)
     };
+
+    if target.exists() {
+        return Err(format!("Destination already exists: {}", target.display()));
+    }
 
     fs::rename(path, &target).map_err(|e| format!("Failed to move file: {}", e))?;
 

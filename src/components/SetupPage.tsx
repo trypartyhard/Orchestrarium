@@ -9,6 +9,9 @@ import type { AgentInfo } from "../bindings";
 import { useEscapeKey } from "../lib/useEscapeKey";
 import { validateName } from "../lib/validateName";
 
+// Persists across unmount/remount within the same session
+const sessionWarnedGroups = new Set<string>();
+
 export function SetupPage() {
   const agents = useAppStore((s) => s.agents);
   const skills = useAppStore((s) => s.skills);
@@ -31,7 +34,7 @@ export function SetupPage() {
   const [saveName, setSaveName] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeFilter, setActiveFilter] = useState<"agents" | "skills" | "commands" | null>(null);
-  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(new Set());
+  const [warnedGroups, setWarnedGroups] = useState<Set<string>>(sessionWarnedGroups);
   const [pendingToggle, setPendingToggle] = useState<AgentInfo | null>(null);
 
   useEscapeKey(useCallback(() => {
@@ -51,22 +54,28 @@ export function SetupPage() {
   }, [allItems]);
 
   // Items visible in setup list
-  const setupItems = allItems.filter((i) => setupIds.has(i.id));
-  const agentIds = new Set(agents.map((a) => a.id));
-  const skillIds = new Set(skills.map((s) => s.id));
-  const setupAgents = setupItems.filter((i) => agentIds.has(i.id));
-  const setupSkills = setupItems.filter((i) => skillIds.has(i.id));
-  const setupCommands = setupItems.filter((i) => !agentIds.has(i.id) && !skillIds.has(i.id));
+  const setupItems = useMemo(
+    () => allItems.filter((i) => setupIds.has(i.id)),
+    [allItems, setupIds],
+  );
+  const { setupAgents, setupSkills, setupCommands } = useMemo(() => {
+    const agentIds = new Set(agents.map((a) => a.id));
+    const skillIds = new Set(skills.map((s) => s.id));
+    return {
+      setupAgents: setupItems.filter((i) => agentIds.has(i.id)),
+      setupSkills: setupItems.filter((i) => skillIds.has(i.id)),
+      setupCommands: setupItems.filter((i) => !agentIds.has(i.id) && !skillIds.has(i.id)),
+    };
+  }, [setupItems, agents, skills]);
 
   // Group items by group name, sorted stably by item name within each group
-  function buildSubGroups(items: AgentInfo[]) {
+  const buildSubGroups = useCallback((items: AgentInfo[]) => {
     const map = new Map<string, AgentInfo[]>();
     for (const item of items) {
       const group = item.group || "Custom";
       if (!map.has(group)) map.set(group, []);
       map.get(group)!.push(item);
     }
-    // Sort items within each group by name (stable order regardless of disk state)
     for (const [, groupItems] of map) {
       groupItems.sort((a, b) => a.name.localeCompare(b.name));
     }
@@ -75,11 +84,11 @@ export function SetupPage() {
       if (b === "Custom" && a !== "Custom") return -1;
       return a.localeCompare(b);
     });
-  }
+  }, []);
 
-  const agentSubGroups = useMemo(() => buildSubGroups(setupAgents), [setupAgents]);
-  const skillSubGroups = useMemo(() => buildSubGroups(setupSkills), [setupSkills]);
-  const commandSubGroups = useMemo(() => buildSubGroups(setupCommands), [setupCommands]);
+  const agentSubGroups = useMemo(() => buildSubGroups(setupAgents), [buildSubGroups, setupAgents]);
+  const skillSubGroups = useMemo(() => buildSubGroups(setupSkills), [buildSubGroups, setupSkills]);
+  const commandSubGroups = useMemo(() => buildSubGroups(setupCommands), [buildSubGroups, setupCommands]);
 
   // Stats reflect setup state
   const stats = {
@@ -98,8 +107,10 @@ export function SetupPage() {
   }, [activeSetup, setupSnapshot, setupItems]);
 
   const handleUpdateSetup = async () => {
-    await updateSetup();
-    showToast(`Setup "${activeSetup}" updated`);
+    try {
+      await updateSetup();
+      showToast(`Setup "${activeSetup}" updated`);
+    } catch { /* error toast shown by store */ }
   };
 
   const handleToggleWithWarning = (item: AgentInfo) => {
@@ -118,7 +129,8 @@ export function SetupPage() {
   const confirmGroupWarning = () => {
     if (!pendingToggle) return;
     const group = pendingToggle.group || "Custom";
-    setWarnedGroups((prev) => new Set(prev).add(group));
+    sessionWarnedGroups.add(group);
+    setWarnedGroups(new Set(sessionWarnedGroups));
     toggleItem(pendingToggle);
     setPendingToggle(null);
   };
@@ -127,25 +139,33 @@ export function SetupPage() {
 
   const handleSave = async () => {
     if (!saveName.trim() || saveNameError) return;
-    await createSetup(saveName.trim());
-    showToast(`Setup "${saveName.trim()}" saved to Library`);
-    setSaveName("");
-    setShowSaveModal(false);
+    try {
+      await createSetup(saveName.trim());
+      showToast(`Setup "${saveName.trim()}" saved to Library`);
+      setSaveName("");
+      setShowSaveModal(false);
+    } catch { /* error toast shown by store */ }
   };
 
   const handleRemoveFromSetup = async (item: AgentInfo) => {
-    if (item.enabled) await toggleItem(item);
+    if (item.enabled) {
+      const ok = await toggleItem(item);
+      if (!ok) return;
+    }
     removeFromSetup(item.id);
   };
 
   const handleRemoveGroupFromSetup = async (items: AgentInfo[]) => {
     const enabled = items.filter((i) => i.enabled);
-    if (enabled.length > 0) await toggleGroup(enabled, false);
+    if (enabled.length > 0) {
+      const ok = await toggleGroup(enabled, false);
+      if (!ok) return;
+    }
     items.forEach((i) => removeFromSetup(i.id));
   };
 
   const handleClear = async () => {
-    await clearSetup();
+    try { await clearSetup(); } catch { return; }
     setShowClearModal(false);
     showToast("Setup cleared");
   };

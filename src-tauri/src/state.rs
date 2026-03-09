@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
@@ -23,7 +23,7 @@ impl AppState {
             commands: Mutex::new(Vec::new()),
             base_dir,
             watcher_state: Arc::new(WatcherState {
-                suppressed: AtomicBool::new(false),
+                suppress_count: AtomicU32::new(0),
             }),
         }
     }
