@@ -3,6 +3,26 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
+// ─── Context commands ───────────────────────────────────────────
+
+export async function setActiveContext(context: string): Promise<void> {
+  return await invoke<void>("set_active_context", { context });
+}
+
+export async function getActiveContext(): Promise<string> {
+  return await invoke<string>("get_active_context");
+}
+
+export async function setProjectDir(path: string | null): Promise<void> {
+  return await invoke<void>("set_project_dir", { path });
+}
+
+export async function getProjectDir(): Promise<string | null> {
+  return await invoke<string | null>("get_project_dir");
+}
+
+// ─── Types ──────────────────────────────────────────────────────
+
 export type AgentInfo = {
   id: string;
   filename: string;

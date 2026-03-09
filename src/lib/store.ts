@@ -3,6 +3,8 @@ import {
   type AgentInfo,
   type Setup,
   type ClaudeMdProfile,
+  setActiveContext as setActiveContextIPC,
+  setProjectDir as setProjectDirIPC,
   getAgents,
   getSkills,
   getCommands,
@@ -29,6 +31,7 @@ import {
 export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
+export type ContextType = "global" | "project";
 
 // Guard against double-click: tracks item IDs currently being toggled
 const togglingIds = new Set<string>();
@@ -63,7 +66,12 @@ interface AppStore {
   setupIdsInitialized: boolean;
   skipGroupWarnings: boolean;
   claudeProfiles: ClaudeMdProfile[];
+  activeContext: ContextType;
+  projectDir: string | null;
 
+  setActiveContext: (ctx: ContextType) => Promise<void>;
+  setProjectDir: (path: string | null) => Promise<void>;
+  reloadForContext: () => Promise<void>;
   loadSection: (section: Section) => Promise<void>;
   silentReload: (section?: Section) => Promise<void>;
   toggleItem: (item: AgentInfo) => Promise<boolean>;
@@ -131,6 +139,38 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setupIdsInitialized: false,
   skipGroupWarnings: localStorage.getItem("orchestrarium-skip-group-warnings") === "true",
   claudeProfiles: [],
+  activeContext: (localStorage.getItem("orchestrarium-context") as ContextType) || "global",
+  projectDir: localStorage.getItem("orchestrarium-project-dir") || null,
+
+  setActiveContext: async (ctx) => {
+    await setActiveContextIPC(ctx);
+    localStorage.setItem("orchestrarium-context", ctx);
+    set({ activeContext: ctx });
+    await get().reloadForContext();
+  },
+
+  setProjectDir: async (path) => {
+    await setProjectDirIPC(path);
+    if (path) {
+      localStorage.setItem("orchestrarium-project-dir", path);
+    } else {
+      localStorage.removeItem("orchestrarium-project-dir");
+    }
+    set({ projectDir: path });
+    if (get().activeContext === "project" && path) {
+      await get().reloadForContext();
+    }
+  },
+
+  reloadForContext: async () => {
+    set({ searchQuery: "", filter: "all", setupIdsInitialized: false });
+    const section = get().activeSection;
+    await get().loadSection(section);
+    // Also reload setups for the new context
+    if (section !== "library") {
+      await get().loadSetups();
+    }
+  },
 
   loadSection: async (section) => {
     set({ loading: true });

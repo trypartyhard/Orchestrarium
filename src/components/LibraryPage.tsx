@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal, Search } from "lucide-react";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeSetupFile, readSetupFile } from "../bindings";
-import { useAppStore } from "../lib/store";
+import { useAppStore, type ContextType } from "../lib/store";
 import { useEscapeKey } from "../lib/useEscapeKey";
 
 export function LibraryPage() {
@@ -14,15 +14,19 @@ export function LibraryPage() {
   const importSetup = useAppStore((s) => s.importSetup);
   const showToast = useAppStore((s) => s.showToast);
   const loadSetups = useAppStore((s) => s.loadSetups);
+  const activeContext = useAppStore((s) => s.activeContext);
+  const projectDir = useAppStore((s) => s.projectDir);
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [importConflict, setImportConflict] = useState<{ name: string; json: string } | null>(null);
+  const [contextMismatch, setContextMismatch] = useState<{ name: string; json: string; sourceContext: string; sourceLabel?: string } | null>(null);
 
   useEscapeKey(useCallback(() => {
     if (importConflict) setImportConflict(null);
-  }, [importConflict]));
+    if (contextMismatch) setContextMismatch(null);
+  }, [importConflict, contextMismatch]));
 
   const filteredSetups = search
     ? setups.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
@@ -46,8 +50,15 @@ export function LibraryPage() {
   };
 
   const handleExport = async (name: string) => {
-    const json = await exportSetup(name);
-    if (!json) return;
+    const rawJson = await exportSetup(name);
+    if (!rawJson) return;
+    // Add context metadata to export
+    const parsed = JSON.parse(rawJson);
+    parsed.context_type = activeContext;
+    if (activeContext === "project" && projectDir) {
+      parsed.project_label = projectDir.replace(/\\/g, "/").split("/").pop() || "";
+    }
+    const json = JSON.stringify(parsed, null, 2);
     const filePath = await save({
       defaultPath: `${name}.json`,
       filters: [{ name: "JSON", extensions: ["json"] }],
@@ -71,6 +82,15 @@ export function LibraryPage() {
       const content = await readSetupFile(filePath);
       const parsed = JSON.parse(content);
       const name = parsed.name as string;
+      const sourceContext = (parsed.context_type as ContextType) || "global";
+      const sourceLabel = parsed.project_label as string | undefined;
+
+      // Check context mismatch
+      if (sourceContext !== activeContext) {
+        setContextMismatch({ name, json: content, sourceContext, sourceLabel });
+        return;
+      }
+
       if (name && setups.some((s) => s.name === name)) {
         setImportConflict({ name, json: content });
         return;
@@ -81,6 +101,25 @@ export function LibraryPage() {
     } catch {
       showToast("Failed to import setup", "error");
     }
+  };
+
+  const confirmContextMismatchImport = async () => {
+    if (!contextMismatch) return;
+    const { name, json } = contextMismatch;
+    // Check for name conflict after context mismatch approval
+    if (name && setups.some((s) => s.name === name)) {
+      setContextMismatch(null);
+      setImportConflict({ name, json });
+      return;
+    }
+    try {
+      await importSetup(json);
+      await loadSetups();
+      showToast("Setup imported");
+    } catch {
+      showToast("Failed to import setup", "error");
+    }
+    setContextMismatch(null);
   };
 
   const confirmImport = async () => {
@@ -261,6 +300,44 @@ export function LibraryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Context mismatch modal */}
+      {contextMismatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex w-80 flex-col gap-4 rounded-lg border border-[#3a3a42] bg-[#27272c] p-5 shadow-xl">
+            <h3 className="text-sm font-semibold text-[#e8e8ec]">
+              Context Mismatch
+            </h3>
+            <p className="text-[13px] leading-relaxed text-[#8a8a96]">
+              This setup was created in{" "}
+              <span className="font-semibold text-[#e8e8ec]">
+                {contextMismatch.sourceContext === "project"
+                  ? `project "${contextMismatch.sourceLabel || "unknown"}"`
+                  : "global"}{" "}
+              </span>
+              context. You are currently in{" "}
+              <span className="font-semibold text-[#e8e8ec]">
+                {activeContext}
+              </span>{" "}
+              context. Import anyway?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setContextMismatch(null)}
+                className="rounded px-3 py-1.5 text-xs text-[#8a8a96] hover:text-[#e8e8ec]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmContextMismatchImport}
+                className="rounded bg-[#4fc3f7] px-3 py-1.5 text-xs font-medium text-[#1e1e23] hover:bg-[#4fc3f7]/80"
+              >
+                Import Anyway
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

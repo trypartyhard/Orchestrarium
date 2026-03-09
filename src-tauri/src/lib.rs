@@ -14,6 +14,10 @@ use tauri::Manager;
 
 fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        commands::set_active_context,
+        commands::get_active_context,
+        commands::set_project_dir,
+        commands::get_project_dir,
         commands::get_agents,
         commands::get_skills,
         commands::get_commands,
@@ -60,7 +64,7 @@ pub fn run() {
     // Note: bindings are maintained manually in src/bindings.ts
     // Run `cargo test export_bindings` to regenerate if needed
 
-    let base_dir = dirs::home_dir()
+    let global_dir = dirs::home_dir()
         .ok_or("Could not find home directory. Please ensure HOME or USERPROFILE is set.")
         .expect("Fatal: home directory not found")
         .join(".claude");
@@ -80,14 +84,14 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
 
-            let app_state = AppState::new(base_dir.clone());
+            let app_state = AppState::new(global_dir.clone());
             let watcher_state = app_state.watcher_state.clone();
 
             app.manage(app_state);
 
-            // Start file watcher
+            // Start file watcher for global dir
             let app_handle = app.handle().clone();
-            let _ = watcher::start_watcher(app_handle, base_dir, watcher_state);
+            let _ = watcher::start_watcher(app_handle, global_dir, watcher_state);
 
             Ok(())
         })

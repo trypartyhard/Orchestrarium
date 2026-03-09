@@ -14,17 +14,48 @@ const WINDOWS_RESERVED: &[&str] = &[
     "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-/// Validate that a file path is inside ~/.claude/
-fn validate_path_in_claude_dir(path: &str) -> Result<(), String> {
+/// Validate that a file path is inside allowed roots.
+/// Read access: allows both ~/.claude and <project>/.claude (if project set).
+/// Mutation access: use validate_path_for_mutation instead.
+async fn validate_path_in_allowed_roots(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
     let canonical = dunce::canonicalize(path)
         .map_err(|e| format!("Invalid path: {}", e))?;
-    let home = dirs::home_dir().ok_or("Cannot determine home directory")?;
-    let claude_dir = dunce::canonicalize(home.join(".claude"))
-        .unwrap_or_else(|_| home.join(".claude"));
-    if !canonical.starts_with(&claude_dir) {
-        return Err("Access denied: path must be inside ~/.claude/".into());
+
+    // Always allow ~/.claude
+    let global_canonical = dunce::canonicalize(&state.global_dir)
+        .unwrap_or_else(|_| state.global_dir.clone());
+    if canonical.starts_with(&global_canonical) {
+        return Ok(());
     }
-    Ok(())
+
+    // Allow <project>/.claude if project is set
+    let proj = state.project_dir.lock().await;
+    if let Some(ref project_root) = *proj {
+        let project_claude = project_root.join(".claude");
+        if let Ok(proj_canonical) = dunce::canonicalize(&project_claude) {
+            if canonical.starts_with(&proj_canonical) {
+                return Ok(());
+            }
+        }
+    }
+
+    Err("Access denied: path must be inside an allowed .claude/ directory".into())
+}
+
+/// Validate that a path is inside the currently active context directory.
+async fn validate_path_for_mutation(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
+    let canonical = dunce::canonicalize(path)
+        .map_err(|e| format!("Invalid path: {}", e))?;
+
+    let active_dir = state.active_claude_dir().await?;
+    let active_canonical = dunce::canonicalize(&active_dir)
+        .unwrap_or_else(|_| active_dir);
+
+    if canonical.starts_with(&active_canonical) {
+        return Ok(());
+    }
+
+    Err("Access denied: path must be inside the active context directory".into())
 }
 
 fn validate_name(name: &str) -> Result<(), String> {
@@ -44,23 +75,101 @@ fn validate_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Determine scope from a file path.
-/// Files under the user's home .claude directory are "global", others are "project".
-fn detect_scope(path: &str) -> &'static str {
-    let normalized = path.replace('\\', "/");
-    if let Some(home) = dirs::home_dir() {
-        let home_claude = home.join(".claude").to_string_lossy().replace('\\', "/");
-        if normalized.starts_with(&home_claude) {
-            return "global";
+// ─── Context commands ───────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_active_context(
+    state: State<'_, AppState>,
+    context: String,
+) -> Result<(), String> {
+    if context != "global" && context != "project" {
+        return Err("Context must be 'global' or 'project'".into());
+    }
+    let mut ctx = state.active_context.lock().await;
+    *ctx = context.clone();
+    drop(ctx);
+
+    // Reconfigure project watcher based on new context
+    let tx = state.watcher_state.project_watcher_tx.lock().await;
+    if let Some(ref sender) = *tx {
+        if context == "project" {
+            let proj = state.project_dir.lock().await;
+            if let Some(ref dir) = *proj {
+                let _ = sender.send(Some(dir.clone()));
+            }
+        } else {
+            let _ = sender.send(None);
         }
     }
-    "project"
+    Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
+pub async fn get_active_context(state: State<'_, AppState>) -> Result<String, String> {
+    let ctx = state.active_context.lock().await;
+    Ok(ctx.clone())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_project_dir(
+    state: State<'_, AppState>,
+    path: Option<String>,
+) -> Result<(), String> {
+    let mut proj = state.project_dir.lock().await;
+    match path {
+        Some(p) => {
+            let project_root = std::path::PathBuf::from(&p);
+            if !project_root.exists() {
+                return Err(format!("Path does not exist: {}", p));
+            }
+            // Ensure .claude/ and its subdirectories exist
+            let claude_dir = project_root.join(".claude");
+            for section in &["agents", "skills", "commands"] {
+                std::fs::create_dir_all(claude_dir.join(section))
+                    .map_err(|e| format!("Failed to create {}: {}", section, e))?;
+            }
+            let root_clone = project_root.clone();
+            *proj = Some(project_root);
+            drop(proj); // release lock before sending
+
+            // Reconfigure project watcher
+            let tx = state.watcher_state.project_watcher_tx.lock().await;
+            if let Some(ref sender) = *tx {
+                let _ = sender.send(Some(root_clone));
+            }
+        }
+        None => {
+            *proj = None;
+            drop(proj);
+
+            // Stop project watcher
+            let tx = state.watcher_state.project_watcher_tx.lock().await;
+            if let Some(ref sender) = *tx {
+                let _ = sender.send(None);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_project_dir(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let proj = state.project_dir.lock().await;
+    Ok(proj.as_ref().map(|p| p.to_string_lossy().to_string()))
+}
+
+// ─── Scan commands ──────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
 pub async fn get_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let agents = scanner::scan_section(&state.base_dir, "agents", "global");
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
+    let agents = scanner::scan_section(&base, "agents", scope);
     let mut lock = state.agents.lock().await;
     *lock = agents.clone();
     Ok(agents)
@@ -69,7 +178,9 @@ pub async fn get_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, St
 #[tauri::command]
 #[specta::specta]
 pub async fn get_skills(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let skills = scanner::scan_section(&state.base_dir, "skills", "global");
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
+    let skills = scanner::scan_section(&base, "skills", scope);
     let mut lock = state.skills.lock().await;
     *lock = skills.clone();
     Ok(skills)
@@ -78,11 +189,15 @@ pub async fn get_skills(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, St
 #[tauri::command]
 #[specta::specta]
 pub async fn get_commands(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, String> {
-    let cmds = scanner::scan_section(&state.base_dir, "commands", "global");
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
+    let cmds = scanner::scan_section(&base, "commands", scope);
     let mut lock = state.commands.lock().await;
     *lock = cmds.clone();
     Ok(cmds)
 }
+
+// ─── Toggle commands ────────────────────────────────────────────
 
 #[tauri::command]
 #[specta::specta]
@@ -92,7 +207,10 @@ pub async fn toggle_item(
     enable: bool,
     section: String,
 ) -> Result<AgentInfo, String> {
-    validate_path_in_claude_dir(&path)?;
+    validate_path_for_mutation(&state, &path).await?;
+
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
 
     // Suppress watcher events during self-initiated toggle
     state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
@@ -110,13 +228,12 @@ pub async fn toggle_item(
     let new_path = result?;
 
     // Update cached state and return the item from the fresh scan
-    let agents = scanner::scan_section(&state.base_dir, &section, "global");
+    let agents = scanner::scan_section(&base, &section, scope);
     let agent = agents
         .iter()
         .find(|a| a.path == new_path.to_string_lossy().replace('\\', "/"))
         .cloned()
         .unwrap_or_else(|| {
-            let scope = detect_scope(&new_path.to_string_lossy());
             crate::parser::parse_agent_file(&new_path, &section, enable, scope)
         });
     match section.as_str() {
@@ -138,8 +255,11 @@ pub async fn toggle_batch(
 ) -> Result<Vec<String>, String> {
     // Validate all paths before starting
     for item in &items {
-        validate_path_in_claude_dir(&item.path)?;
+        validate_path_for_mutation(&state, &item.path).await?;
     }
+
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
 
     state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
 
@@ -152,7 +272,7 @@ pub async fn toggle_batch(
     }
 
     // Refresh cached state for all sections
-    let (agents, skills, commands) = scanner::scan_all(&state.base_dir, "global");
+    let (agents, skills, commands) = scanner::scan_all(&base, scope);
     *state.agents.lock().await = agents;
     *state.skills.lock().await = skills;
     *state.commands.lock().await = commands;
@@ -177,24 +297,27 @@ pub async fn frontend_ready() -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_setups() -> Result<Vec<crate::setups::Setup>, String> {
-    let file = crate::setups::load_setups()?;
+pub async fn get_setups(state: State<'_, AppState>) -> Result<Vec<crate::setups::Setup>, String> {
+    let base = state.active_claude_dir().await?;
+    let file = crate::setups::load_setups_from(&base)?;
     Ok(file.setups)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_active_setup() -> Result<Option<String>, String> {
-    let file = crate::setups::load_setups()?;
+pub async fn get_active_setup(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let base = state.active_claude_dir().await?;
+    let file = crate::setups::load_setups_from(&base)?;
     Ok(file.active)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn clear_active_setup() -> Result<(), String> {
-    let mut file = crate::setups::load_setups()?;
+pub async fn clear_active_setup(state: State<'_, AppState>) -> Result<(), String> {
+    let base = state.active_claude_dir().await?;
+    let mut file = crate::setups::load_setups_from(&base)?;
     file.active = None;
-    crate::setups::save_setups(&file)?;
+    crate::setups::save_setups_to(&base, &file)?;
     Ok(())
 }
 
@@ -205,6 +328,8 @@ pub async fn create_setup(
     name: String,
 ) -> Result<crate::setups::Setup, String> {
     validate_name(&name)?;
+    let base = state.active_claude_dir().await?;
+
     let agents = state.agents.lock().await.clone();
     let skills = state.skills.lock().await.clone();
     let commands = state.commands.lock().await.clone();
@@ -216,25 +341,26 @@ pub async fn create_setup(
         entries,
     };
 
-    let mut file = crate::setups::load_setups()?;
+    let mut file = crate::setups::load_setups_from(&base)?;
     // Replace if same name exists
     file.setups.retain(|s| s.name != name);
     file.setups.push(setup.clone());
     file.active = Some(name);
-    crate::setups::save_setups(&file)?;
+    crate::setups::save_setups_to(&base, &file)?;
 
     Ok(setup)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_setup(name: String) -> Result<(), String> {
-    let mut file = crate::setups::load_setups()?;
+pub async fn delete_setup(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    let base = state.active_claude_dir().await?;
+    let mut file = crate::setups::load_setups_from(&base)?;
     file.setups.retain(|s| s.name != name);
     if file.active.as_deref() == Some(&name) {
         file.active = None;
     }
-    crate::setups::save_setups(&file)?;
+    crate::setups::save_setups_to(&base, &file)?;
     Ok(())
 }
 
@@ -262,7 +388,10 @@ async fn apply_setup_inner(
     state: &State<'_, AppState>,
     name: &str,
 ) -> Result<Vec<String>, String> {
-    let mut file = crate::setups::load_setups()?;
+    let base = state.active_claude_dir().await?;
+    let scope = state.active_scope().await;
+
+    let mut file = crate::setups::load_setups_from(&base)?;
     let setup = file
         .setups
         .iter()
@@ -270,14 +399,14 @@ async fn apply_setup_inner(
         .ok_or_else(|| format!("Setup '{}' not found", name))?
         .clone();
 
-    let failures = crate::setups::apply_setup_entries(&setup.entries, &state.base_dir)?;
+    let failures = crate::setups::apply_setup_entries(&setup.entries, &base, scope)?;
 
     // Mark as active
     file.active = Some(name.to_string());
-    crate::setups::save_setups(&file)?;
+    crate::setups::save_setups_to(&base, &file)?;
 
     // Refresh cached state
-    let (agents, skills, commands) = scanner::scan_all(&state.base_dir, "global");
+    let (agents, skills, commands) = scanner::scan_all(&base, scope);
     *state.agents.lock().await = agents;
     *state.skills.lock().await = skills;
     *state.commands.lock().await = commands;
@@ -287,8 +416,9 @@ async fn apply_setup_inner(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn export_setup(name: String) -> Result<String, String> {
-    let file = crate::setups::load_setups()?;
+pub async fn export_setup(state: State<'_, AppState>, name: String) -> Result<String, String> {
+    let base = state.active_claude_dir().await?;
+    let file = crate::setups::load_setups_from(&base)?;
     let setup = file
         .setups
         .iter()
@@ -299,7 +429,7 @@ pub async fn export_setup(name: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> {
+pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<crate::setups::Setup, String> {
     if json.len() > 1_000_000 {
         return Err("Import data too large (max 1MB)".into());
     }
@@ -310,11 +440,12 @@ pub async fn import_setup(json: String) -> Result<crate::setups::Setup, String> 
         return Err("Too many entries in setup (max 10,000)".into());
     }
 
-    let mut file = crate::setups::load_setups()?;
+    let base = state.active_claude_dir().await?;
+    let mut file = crate::setups::load_setups_from(&base)?;
     // Replace if same name exists
     file.setups.retain(|s| s.name != setup.name);
     file.setups.push(setup.clone());
-    crate::setups::save_setups(&file)?;
+    crate::setups::save_setups_to(&base, &file)?;
 
     Ok(setup)
 }
@@ -348,8 +479,8 @@ pub async fn read_setup_file(path: String) -> Result<String, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn read_item_content(path: String) -> Result<String, String> {
-    validate_path_in_claude_dir(&path)?;
+pub async fn read_item_content(state: State<'_, AppState>, path: String) -> Result<String, String> {
+    validate_path_in_allowed_roots(&state, &path).await?;
     std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
 }
 
@@ -363,55 +494,68 @@ pub async fn auto_import_claude_md() -> Result<bool, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_claude_profiles() -> Result<Vec<claude_md::ClaudeMdProfile>, String> {
-    claude_md::list_profiles()
+pub async fn list_claude_profiles(state: State<'_, AppState>) -> Result<Vec<claude_md::ClaudeMdProfile>, String> {
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    claude_md::list_profiles_in(&orch_dir)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn create_claude_profile(name: String, from_current: bool) -> Result<(), String> {
+pub async fn create_claude_profile(state: State<'_, AppState>, name: String, from_current: bool) -> Result<(), String> {
     validate_name(&name)?;
-    claude_md::create_profile(&name, from_current)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    let claude_md = state.active_claude_md_path().await?;
+    claude_md::create_profile_in(&orch_dir, &claude_md, &name, from_current)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn activate_claude_profile(name: String) -> Result<(), String> {
+pub async fn activate_claude_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
     validate_name(&name)?;
-    claude_md::activate_profile(&name)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    let claude_md = state.active_claude_md_path().await?;
+    claude_md::activate_profile_in(&orch_dir, &claude_md, &name)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn deactivate_claude_profile() -> Result<(), String> {
-    claude_md::deactivate_profile()
+pub async fn deactivate_claude_profile(state: State<'_, AppState>) -> Result<(), String> {
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    let claude_md = state.active_claude_md_path().await?;
+    claude_md::deactivate_profile_in(&orch_dir, &claude_md)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_claude_profile(name: String) -> Result<(), String> {
+pub async fn delete_claude_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
     validate_name(&name)?;
-    claude_md::delete_profile(&name)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    let claude_md = state.active_claude_md_path().await?;
+    claude_md::delete_profile_in(&orch_dir, &claude_md, &name)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn read_claude_profile(name: String) -> Result<String, String> {
+pub async fn read_claude_profile(state: State<'_, AppState>, name: String) -> Result<String, String> {
     validate_name(&name)?;
-    claude_md::read_profile(&name)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    claude_md::read_profile_in(&orch_dir, &name)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_claude_profile(name: String, content: String) -> Result<(), String> {
+pub async fn save_claude_profile(state: State<'_, AppState>, name: String, content: String) -> Result<(), String> {
     validate_name(&name)?;
-    claude_md::save_profile(&name, &content)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    let claude_md = state.active_claude_md_path().await?;
+    claude_md::save_profile_in(&orch_dir, &claude_md, &name, &content)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn rename_claude_profile(old_name: String, new_name: String) -> Result<(), String> {
+pub async fn rename_claude_profile(state: State<'_, AppState>, old_name: String, new_name: String) -> Result<(), String> {
     validate_name(&old_name)?;
     validate_name(&new_name)?;
-    claude_md::rename_profile(&old_name, &new_name)
+    let orch_dir = state.active_orchestrarium_dir().await?;
+    claude_md::rename_profile_in(&orch_dir, &old_name, &new_name)
 }

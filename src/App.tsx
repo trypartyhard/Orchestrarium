@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "./lib/store";
-import { frontendReady, autoImportClaudeMd } from "./bindings";
+import { FolderOpen } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { frontendReady, autoImportClaudeMd, setActiveContext, setProjectDir } from "./bindings";
 import { TitleBar } from "./components/TitleBar";
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
@@ -16,10 +18,33 @@ function App() {
   const loadSection = useAppStore((s) => s.loadSection);
   const activeSection = useAppStore((s) => s.activeSection);
   const loadSetups = useAppStore((s) => s.loadSetups);
+  const activeContext = useAppStore((s) => s.activeContext);
+  const projectDir = useAppStore((s) => s.projectDir);
+  const storeSetProjectDir = useAppStore((s) => s.setProjectDir);
+
+  const showProjectEmptyState = activeContext === "project" && !projectDir;
 
   useEffect(() => {
     // Auto-import existing CLAUDE.md on first run
     autoImportClaudeMd().catch(() => {});
+
+    // Restore context from localStorage
+    const savedContext = localStorage.getItem("orchestrarium-context") || "global";
+    const savedProject = localStorage.getItem("orchestrarium-project-dir");
+    const restoreContext = async () => {
+      try {
+        await setActiveContext(savedContext);
+        if (savedProject) {
+          await setProjectDir(savedProject).catch(() => {
+            // Project path no longer exists, fall back to global
+            localStorage.removeItem("orchestrarium-project-dir");
+            useAppStore.setState({ projectDir: null, activeContext: "global" });
+            setActiveContext("global").catch(() => {});
+          });
+        }
+      } catch { /* ignore */ }
+    };
+    restoreContext();
 
     // Initial load
     loadSection(activeSection);
@@ -50,7 +75,21 @@ function App() {
         <div className="flex min-w-0 flex-1 overflow-hidden">
           <Sidebar />
           <div className="flex min-w-0 flex-1 flex-col border-t border-l border-[#222228]">
-          {activeSection === "setup" ? (
+          {showProjectEmptyState ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+              <FolderOpen className="h-12 w-12 text-[#3a3a42]" />
+              <p className="text-sm text-[#56565f]">No project selected</p>
+              <button
+                onClick={async () => {
+                  const selected = await open({ directory: true });
+                  if (selected) await storeSetProjectDir(selected);
+                }}
+                className="rounded-lg border border-[#66bb6a]/30 bg-[#66bb6a]/10 px-4 py-2 text-sm font-medium text-[#66bb6a] transition-colors hover:bg-[#66bb6a]/20"
+              >
+                Open Project Folder
+              </button>
+            </div>
+          ) : activeSection === "setup" ? (
             <SetupPage />
           ) : activeSection === "library" ? (
             <LibraryPage />

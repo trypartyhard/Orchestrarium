@@ -7,6 +7,8 @@ export function StatusBar() {
   const commands = useAppStore((s) => s.commands);
   const setups = useAppStore((s) => s.setups);
   const claudeProfiles = useAppStore((s) => s.claudeProfiles);
+  const activeContext = useAppStore((s) => s.activeContext);
+  const projectDir = useAppStore((s) => s.projectDir);
 
   const isItemSection = activeSection === "setup" || activeSection === "agents" || activeSection === "skills" || activeSection === "commands";
 
@@ -22,22 +24,37 @@ export function StatusBar() {
   const enabledCount = isItemSection ? items.filter((i) => i.enabled).length : 0;
   const disabledCount = isItemSection ? items.filter((i) => !i.enabled).length : 0;
 
+  const basePath = activeContext === "project" && projectDir
+    ? projectDir.replace(/\\/g, "/").replace(/\/$/, "")
+    : "~/.claude";
+
   const pathLabel =
     activeSection === "library"
-      ? "~/.claude/orchestrarium/setups.json"
+      ? `${basePath}/.claude/orchestrarium/setups.json`
       : activeSection === "claude-md"
-        ? "~/.claude/CLAUDE.md"
+        ? activeContext === "project" && projectDir
+          ? `${basePath}/CLAUDE.md`
+          : "~/.claude/CLAUDE.md"
         : activeSection === "setup"
-          ? "~/.claude/"
+          ? activeContext === "project" && projectDir
+            ? `${basePath}/.claude/`
+            : "~/.claude/"
           : activeSection === "skills"
-            ? "~/.claude/skills/"
+            ? `${basePath}${activeContext === "project" ? "/.claude" : ""}/skills/`
             : activeSection === "commands"
-              ? "~/.claude/commands/"
-              : "~/.claude/agents/";
+              ? `${basePath}${activeContext === "project" ? "/.claude" : ""}/commands/`
+              : `${basePath}${activeContext === "project" ? "/.claude" : ""}/agents/`;
+
+  const contextLabel = activeContext === "project" ? "Project" : "Global";
+  const contextColor = activeContext === "project" ? "#66bb6a" : "#4fc3f7";
 
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">
-      <span>{pathLabel}</span>
+      <div className="flex items-center gap-2">
+        <span style={{ color: contextColor }}>{contextLabel}</span>
+        <span className="text-[#3a3a42]">|</span>
+        <span>{pathLabel}</span>
+      </div>
       <div className="flex items-center gap-4">
         {activeSection === "library" ? (
           <span className="text-[#6b6b78]">{setups.length} setup{setups.length !== 1 ? "s" : ""} saved</span>
