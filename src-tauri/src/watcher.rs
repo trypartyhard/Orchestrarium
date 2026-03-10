@@ -69,7 +69,9 @@ pub fn start_watcher(
                         let _ = app_global.emit("fs-changed", ());
                     }
                 }
-                Ok(Err(_)) => {}
+                Ok(Err(e)) => {
+                    eprintln!("Warning: global watcher error: {:?}", e);
+                }
                 Err(_) => break,
             }
         }
@@ -80,31 +82,16 @@ pub fn start_watcher(
     // ─── Project watcher (dynamic, reconfigurable) ──────────────
     let (project_tx, project_rx) = std::sync::mpsc::channel::<Option<PathBuf>>();
 
-    // Store the sender so commands.rs can reconfigure
+    // Store the sender BEFORE spawning the thread so commands can use it immediately
     {
-        let tx_lock = watcher_state.project_watcher_tx.blocking_lock();
-        drop(tx_lock);
-        // We'll set it via tokio task since Mutex is async
+        let mut tx_lock = watcher_state.project_watcher_tx.blocking_lock();
+        *tx_lock = Some(project_tx.clone());
     }
 
     let ws_project = watcher_state.clone();
     let app_project = app;
 
     std::thread::spawn(move || {
-        // Set the sender in the watcher state
-        // We use a separate channel to signal initialization
-        let (init2_tx, init2_rx) = std::sync::mpsc::channel();
-        let project_tx_clone = project_tx.clone();
-        let ws_init = ws_project.clone();
-        std::thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-            rt.block_on(async {
-                let mut lock = ws_init.project_watcher_tx.lock().await;
-                *lock = Some(project_tx_clone);
-            });
-            let _ = init2_tx.send(());
-        });
-        let _ = init2_rx.recv();
 
         let mut current_debouncer: Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>> = None;
         let (event_tx, event_rx) = std::sync::mpsc::channel();
@@ -166,7 +153,9 @@ pub fn start_watcher(
                             let _ = app_project.emit("fs-changed", ());
                         }
                     }
-                    Ok(Err(_)) => {}
+                    Ok(Err(e)) => {
+                        eprintln!("Warning: project watcher error: {:?}", e);
+                    }
                     Err(_) => {
                         // No events ready, sleep briefly to avoid busy loop
                         std::thread::sleep(Duration::from_millis(50));

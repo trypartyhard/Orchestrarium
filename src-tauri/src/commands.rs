@@ -59,16 +59,37 @@ async fn validate_path_for_mutation(state: &State<'_, AppState>, path: &str) -> 
 }
 
 /// Validate setup file I/O paths: allow .claude roots or user-chosen paths, block system dirs.
+/// Uses parent directory for canonicalization to support new (not-yet-existing) files.
 async fn validate_setup_file_path(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
     if validate_path_in_allowed_roots(state, path).await.is_ok() {
         return Ok(());
     }
-    let canonical = dunce::canonicalize(path)
+    // For new files (export), canonicalize the parent directory instead
+    let p = std::path::Path::new(path);
+    let dir = p.parent().ok_or("Invalid path: no parent directory")?;
+    let canonical_dir = dunce::canonicalize(dir)
         .map_err(|e| format!("Invalid path: {}", e))?;
-    let path_str = canonical.to_string_lossy().to_lowercase();
+    let dir_str = canonical_dir.to_string_lossy().to_lowercase();
     let blocked = ["\\windows\\", "\\system32\\", "\\program files", "/etc/", "/usr/"];
-    if blocked.iter().any(|b| path_str.contains(b)) {
+    if blocked.iter().any(|b| dir_str.contains(b)) {
         return Err("Access denied: cannot access system directories".to_string());
+    }
+    Ok(())
+}
+
+/// Validate that a toggle path points to a .md file inside a valid section (or .disabled subdir).
+fn validate_toggle_path(path: &str, _section: &str) -> Result<(), String> {
+    let p = std::path::Path::new(path);
+    // Must be a .md file
+    if p.extension().and_then(|e| e.to_str()) != Some("md") {
+        return Err("Only .md files can be toggled".into());
+    }
+    // Must be inside agents/, skills/, commands/ (or their .disabled/ subdirs)
+    let path_str = path.replace('\\', "/");
+    let valid_parents = ["/agents/", "/skills/", "/commands/",
+                         "/agents/.disabled/", "/skills/.disabled/", "/commands/.disabled/"];
+    if !valid_parents.iter().any(|p| path_str.contains(p)) {
+        return Err("File must be inside agents/, skills/, or commands/ directory".into());
     }
     Ok(())
 }
@@ -295,6 +316,7 @@ pub async fn toggle_item(
     section: String,
 ) -> Result<AgentInfo, String> {
     validate_section(&section)?;
+    validate_toggle_path(&path, &section)?;
     validate_path_for_mutation(&state, &path).await?;
 
     let base = state.active_claude_dir().await?;
@@ -343,6 +365,7 @@ pub async fn toggle_batch(
 ) -> Result<Vec<String>, String> {
     // Validate all paths before starting
     for item in &items {
+        validate_toggle_path(&item.path, "batch")?;
         validate_path_for_mutation(&state, &item.path).await?;
     }
 
@@ -580,6 +603,15 @@ pub async fn read_setup_file(state: State<'_, AppState>, path: String) -> Result
 #[specta::specta]
 pub async fn read_item_content(state: State<'_, AppState>, path: String) -> Result<String, String> {
     validate_path_in_allowed_roots(&state, &path).await?;
+    // Only allow reading .md files for preview
+    let p = std::path::Path::new(&path);
+    if p.extension().and_then(|e| e.to_str()) != Some("md") {
+        return Err("Only .md files can be previewed".into());
+    }
+    let meta = std::fs::metadata(&path).map_err(|e| format!("Failed to read file: {}", e))?;
+    if meta.len() > 1_000_000 {
+        return Err("File too large to preview (max 1MB)".into());
+    }
     std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
 }
 
