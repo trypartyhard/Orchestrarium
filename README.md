@@ -30,8 +30,9 @@ Orchestrarium gives you a clean UI to do this with a single click — plus saved
 
 - **Setup** — your active configuration at a glance. Toggle items on/off, see summary cards with counts and progress bars.
 - **Agents / Skills / Commands** — browse everything installed, search, filter, add to setup individually or by group.
-- **Library** — save and name your setups. Switch between them instantly. Export/import as JSON.
+- **Library** — save and name your setups. Activate a setup to exclusively enable only its items (everything else is disabled). Export/import as JSON.
 - **CLAUDE.md** — manage multiple instruction profiles. Create, edit, activate, deactivate — switch Claude's behavior in one click.
+- **Project context** — switch between global `~/.claude/` and project-level `.claude/` directories. Manage project-specific agents alongside global ones.
 - **Tutorial** — built-in 7-page walkthrough covering every section.
 - **File watcher** — detects external changes to your `.claude/` directory and refreshes automatically.
 
@@ -109,6 +110,7 @@ When disabling an item from an active group:
 | Enable an item | `.disabled/file.md` moves to `file.md` |
 | Disable an item | `file.md` moves to `.disabled/file.md` |
 | Save Setup | Current on/off state saved to `~/.claude/orchestrarium/setups.json` |
+| Activate Setup | Items in the setup are enabled, **everything else is disabled** |
 | Activate CLAUDE.md profile | Profile content copied to `~/.claude/CLAUDE.md` |
 | Deactivate profile | `~/.claude/CLAUDE.md` cleared |
 
@@ -116,7 +118,7 @@ When disabling an item from an active group:
 
 - **Frontend:** React 19, TypeScript, Tailwind CSS 4, Zustand 5
 - **Backend:** Tauri 2, Rust
-- **Testing:** Vitest (29 tests), Cargo test (26 tests)
+- **Testing:** Vitest (46 tests), Cargo test (42 tests)
 
 ## The Story
 
@@ -130,7 +132,8 @@ Thank you for reading this far — for me, that's already a small victory and mo
 
 ## Roadmap
 
-- **Project-level scope** — support `.claude/` directories inside projects, not just global `~/.claude/`
+- ~~**Project-level scope**~~ ✅ — done in v0.2.0
+- **Subfolder support** — scan and manage agents in nested directories (e.g. `commands/gsd/*.md`)
 - **MCP server management** — configure and toggle MCP servers
 - **Agent creator** — create new agents directly from the UI
 - **Content preview** — view full agent/skill content inline in the card
