@@ -65,10 +65,13 @@ pub fn run() {
     // Note: bindings are maintained manually in src/bindings.ts
     // Run `cargo test export_bindings` to regenerate if needed
 
-    let global_dir = dirs::home_dir()
-        .ok_or("Could not find home directory. Please ensure HOME or USERPROFILE is set.")
-        .expect("Fatal: home directory not found")
-        .join(".claude");
+    let global_dir = match dirs::home_dir() {
+        Some(home) => home.join(".claude"),
+        None => {
+            eprintln!("Fatal: home directory not found. Please ensure HOME or USERPROFILE is set.");
+            std::process::exit(1);
+        }
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -92,7 +95,9 @@ pub fn run() {
 
             // Start file watcher for global dir
             let app_handle = app.handle().clone();
-            let _ = watcher::start_watcher(app_handle, global_dir, watcher_state);
+            if let Err(e) = watcher::start_watcher(app_handle, global_dir, watcher_state) {
+                eprintln!("Warning: file watcher failed to start: {}. Auto-refresh disabled.", e);
+            }
 
             Ok(())
         })

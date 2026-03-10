@@ -30,7 +30,9 @@ export function StatusBar() {
 
   const pathLabel =
     activeSection === "library"
-      ? `${basePath}/.claude/orchestrarium/setups.json`
+      ? activeContext === "project" && projectDir
+        ? `${basePath}/.claude/orchestrarium/setups.json`
+        : "~/.claude/orchestrarium/setups.json"
       : activeSection === "claude-md"
         ? activeContext === "project" && projectDir
           ? `${basePath}/CLAUDE.md`
@@ -73,7 +75,7 @@ export function StatusBar() {
           </>
         )}
       </div>
-      <span>v0.2.0</span>
+      <span>v{__APP_VERSION__}</span>
     </footer>
   );
 }

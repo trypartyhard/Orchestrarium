@@ -5,12 +5,15 @@ import { invoke } from "@tauri-apps/api/core";
 
 // ─── Context commands ───────────────────────────────────────────
 
-export async function setActiveContext(context: string): Promise<void> {
+export type ContextType = "global" | "project";
+export type SectionType = "agents" | "skills" | "commands";
+
+export async function setActiveContext(context: ContextType): Promise<void> {
   return await invoke<void>("set_active_context", { context });
 }
 
-export async function getActiveContext(): Promise<string> {
-  return await invoke<string>("get_active_context");
+export async function getActiveContext(): Promise<ContextType> {
+  return await invoke<ContextType>("get_active_context");
 }
 
 export async function setProjectDir(path: string | null): Promise<void> {
@@ -65,7 +68,7 @@ export async function getCommands(): Promise<AgentInfo[]> {
 export async function toggleItem(
   path: string,
   enable: boolean,
-  section: string,
+  section: SectionType,
 ): Promise<AgentInfo> {
   return await invoke<AgentInfo>("toggle_item", { path, enable, section });
 }
@@ -133,7 +136,7 @@ export async function readItemContent(path: string): Promise<string> {
   return await invoke<string>("read_item_content", { path });
 }
 
-export async function copyItemToProject(sourcePath: string, section: string): Promise<AgentInfo> {
+export async function copyItemToProject(sourcePath: string, section: SectionType): Promise<AgentInfo> {
   return await invoke<AgentInfo>("copy_item_to_project", { sourcePath, section });
 }
 

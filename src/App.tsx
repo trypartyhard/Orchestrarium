@@ -33,16 +33,19 @@ function App() {
     const savedProject = localStorage.getItem("orchestrarium-project-dir");
     const restoreAndLoad = async () => {
       try {
+        let resolvedContext = "global";
         if (savedProject) {
-          // Set project dir first so backend knows the path before context switch
-          await setProjectDir(savedProject).catch(() => {
+          try {
+            await setProjectDir(savedProject);
+            resolvedContext = savedContext;
+          } catch {
             localStorage.removeItem("orchestrarium-project-dir");
             useAppStore.setState({ projectDir: null, activeContext: "global" });
-          });
+          }
         }
-        await setActiveContext(
-          savedProject ? savedContext : "global"
-        );
+        const ctx = resolvedContext as "global" | "project";
+        await setActiveContext(ctx);
+        useAppStore.setState({ activeContext: ctx });
       } catch { /* ignore */ }
 
       // Load after context is fully restored

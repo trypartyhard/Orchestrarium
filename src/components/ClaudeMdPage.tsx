@@ -75,6 +75,7 @@ export function ClaudeMdPage() {
   };
 
   const editRequestRef = useRef(0);
+  const previewRequestRef = useRef(0);
 
   const handleEdit = async (name: string) => {
     const requestId = ++editRequestRef.current;
@@ -97,9 +98,12 @@ export function ClaudeMdPage() {
   };
 
   const handlePreview = async (name: string) => {
-    const content = await readProfile(name);
-    setPreviewContent(content);
+    const requestId = ++previewRequestRef.current;
     setPreviewProfile(name);
+    setPreviewContent(null);
+    const content = await readProfile(name);
+    if (previewRequestRef.current !== requestId) return;
+    setPreviewContent(content);
   };
 
   const handleCloseEditor = () => {

@@ -15,6 +15,8 @@ pub struct AppState {
     pub active_context: Mutex<String>,
     pub project_dir: Mutex<Option<PathBuf>>,
     pub watcher_state: Arc<WatcherState>,
+    /// Serializes read-modify-write operations on setups.json
+    pub setups_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -30,6 +32,7 @@ impl AppState {
                 suppress_count: AtomicU32::new(0),
                 project_watcher_tx: Mutex::new(None),
             }),
+            setups_lock: Mutex::new(()),
         }
     }
 

@@ -3,6 +3,7 @@ import {
   type AgentInfo,
   type Setup,
   type ClaudeMdProfile,
+  type ContextType,
   setActiveContext as setActiveContextIPC,
   setProjectDir as setProjectDirIPC,
   getAgents,
@@ -32,7 +33,8 @@ import {
 export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
-export type ContextType = "global" | "project";
+// ContextType re-exported from bindings
+export type { ContextType } from "../bindings";
 
 // Guard against double-click: tracks item IDs currently being toggled
 const togglingIds = new Set<string>();
@@ -257,7 +259,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     );
 
     try {
-      await toggleItemIPC(item.path, newEnabled, item.section);
+      await toggleItemIPC(item.path, newEnabled, item.section as "agents" | "skills" | "commands");
       await get().silentReload(section);
       return true;
     } catch {
@@ -387,7 +389,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (failures.length > 0) {
         get().showToast(`Failed to disable ${failures.length} item(s)`, "error");
         await get().silentReload("setup");
-        throw undefined;
+        throw new Error("operation failed");
       }
     }
     const empty = new Set<string>();
@@ -439,7 +441,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ setupSnapshot: snapshot });
     } catch {
       get().showToast("Failed to create setup", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -449,7 +451,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadSetups();
     } catch {
       get().showToast("Failed to delete setup", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -478,7 +480,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     } catch {
       get().showToast("Failed to apply setup", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -497,7 +499,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ setupSnapshot: snapshot });
     } catch {
       get().showToast("Failed to update setup", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -539,7 +541,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch (e) {
       get().showToast(String(e), "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -549,7 +551,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch {
       get().showToast("Failed to activate profile", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -559,7 +561,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch {
       get().showToast("Failed to deactivate profile", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -569,7 +571,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch {
       get().showToast("Failed to delete profile", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -588,7 +590,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch {
       get().showToast("Failed to save profile", "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
@@ -598,13 +600,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().loadClaudeProfiles();
     } catch (e) {
       get().showToast(String(e), "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 
   copyItemToProject: async (item) => {
     try {
-      await copyItemToProjectIPC(item.path, item.section);
+      await copyItemToProjectIPC(item.path, item.section as "agents" | "skills" | "commands");
       // Reload the section to pick up the new project-local copy
       const section = item.section as "agents" | "skills" | "commands";
       const loader = sectionLoaders[section];
@@ -614,7 +616,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       get().addToSetup(item.id);
     } catch (e) {
       get().showToast(String(e), "error");
-      throw undefined;
+      throw new Error("operation failed");
     }
   },
 }));

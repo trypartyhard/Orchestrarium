@@ -58,6 +58,28 @@ async fn validate_path_for_mutation(state: &State<'_, AppState>, path: &str) -> 
     Err("Access denied: path must be inside the active context directory".into())
 }
 
+/// Validate setup file I/O paths: allow .claude roots or user-chosen paths, block system dirs.
+async fn validate_setup_file_path(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
+    if validate_path_in_allowed_roots(state, path).await.is_ok() {
+        return Ok(());
+    }
+    let canonical = dunce::canonicalize(path)
+        .map_err(|e| format!("Invalid path: {}", e))?;
+    let path_str = canonical.to_string_lossy().to_lowercase();
+    let blocked = ["\\windows\\", "\\system32\\", "\\program files", "/etc/", "/usr/"];
+    if blocked.iter().any(|b| path_str.contains(b)) {
+        return Err("Access denied: cannot access system directories".to_string());
+    }
+    Ok(())
+}
+
+fn validate_section(section: &str) -> Result<(), String> {
+    if !["agents", "skills", "commands"].contains(&section) {
+        return Err("Invalid section: must be agents, skills, or commands".into());
+    }
+    Ok(())
+}
+
 fn validate_name(name: &str) -> Result<(), String> {
     let trimmed = name.trim();
     if trimmed.is_empty() {
@@ -121,10 +143,12 @@ pub async fn set_project_dir(
     let mut proj = state.project_dir.lock().await;
     match path {
         Some(p) => {
-            let project_root = std::path::PathBuf::from(&p);
-            if !project_root.exists() {
+            let raw_root = std::path::PathBuf::from(&p);
+            if !raw_root.exists() {
                 return Err(format!("Path does not exist: {}", p));
             }
+            let project_root = dunce::canonicalize(&raw_root)
+                .map_err(|e| format!("Failed to resolve path: {}", e))?;
             // Ensure .claude/ and its subdirectories exist
             let claude_dir = project_root.join(".claude");
             for section in &["agents", "skills", "commands"] {
@@ -228,6 +252,7 @@ pub async fn copy_item_to_project(
     source_path: String,
     section: String,
 ) -> Result<AgentInfo, String> {
+    validate_section(&section)?;
     // Validate source is in global dir
     let source = std::path::PathBuf::from(&source_path);
     let global_canonical = dunce::canonicalize(&state.global_dir).unwrap_or_else(|_| state.global_dir.clone());
@@ -269,6 +294,7 @@ pub async fn toggle_item(
     enable: bool,
     section: String,
 ) -> Result<AgentInfo, String> {
+    validate_section(&section)?;
     validate_path_for_mutation(&state, &path).await?;
 
     let base = state.active_claude_dir().await?;
@@ -376,6 +402,7 @@ pub async fn get_active_setup(state: State<'_, AppState>) -> Result<Option<Strin
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_active_setup(state: State<'_, AppState>) -> Result<(), String> {
+    let _lock = state.setups_lock.lock().await;
     let base = state.active_claude_dir().await?;
     let mut file = crate::setups::load_setups_from(&base)?;
     file.active = None;
@@ -391,6 +418,7 @@ pub async fn create_setup(
     item_ids: Vec<String>,
 ) -> Result<crate::setups::Setup, String> {
     validate_name(&name)?;
+    let _lock = state.setups_lock.lock().await;
     let base = state.active_claude_dir().await?;
 
     let agents = state.agents.lock().await.clone();
@@ -420,6 +448,7 @@ pub async fn create_setup(
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_setup(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    let _lock = state.setups_lock.lock().await;
     let base = state.active_claude_dir().await?;
     let mut file = crate::setups::load_setups_from(&base)?;
     file.setups.retain(|s| s.name != name);
@@ -454,6 +483,7 @@ async fn apply_setup_inner(
     state: &State<'_, AppState>,
     name: &str,
 ) -> Result<Vec<String>, String> {
+    let _lock = state.setups_lock.lock().await;
     let base = state.active_claude_dir().await?;
     let scope = state.active_scope().await;
 
@@ -496,6 +526,7 @@ pub async fn export_setup(state: State<'_, AppState>, name: String) -> Result<St
 #[tauri::command]
 #[specta::specta]
 pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<crate::setups::Setup, String> {
+    let _lock = state.setups_lock.lock().await;
     if json.len() > 1_000_000 {
         return Err("Import data too large (max 1MB)".into());
     }
@@ -520,19 +551,21 @@ pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<cr
 
 #[tauri::command]
 #[specta::specta]
-pub async fn write_setup_file(path: String, content: String) -> Result<(), String> {
+pub async fn write_setup_file(state: State<'_, AppState>, path: String, content: String) -> Result<(), String> {
     if !path.ends_with(".json") {
         return Err("Only .json files are allowed".into());
     }
+    validate_setup_file_path(&state, &path).await?;
     std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {}", e))
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn read_setup_file(path: String) -> Result<String, String> {
+pub async fn read_setup_file(state: State<'_, AppState>, path: String) -> Result<String, String> {
     if !path.ends_with(".json") {
         return Err("Only .json files are allowed".into());
     }
+    validate_setup_file_path(&state, &path).await?;
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
     if content.len() > 1_000_000 {
