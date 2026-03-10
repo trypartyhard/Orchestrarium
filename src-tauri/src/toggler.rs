@@ -32,8 +32,10 @@ pub fn toggle(path: &Path, enable: bool) -> Result<PathBuf, String> {
         disabled_dir.join(filename)
     };
 
+    // If destination already exists (e.g. duplicate from plugins), overwrite it
     if target.exists() {
-        return Err(format!("Destination already exists: {}", target.display()));
+        fs::remove_file(&target)
+            .map_err(|e| format!("Failed to remove existing {}: {}", target.display(), e))?;
     }
 
     fs::rename(path, &target).map_err(|e| format!("Failed to move file: {}", e))?;

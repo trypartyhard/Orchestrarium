@@ -90,6 +90,7 @@ pub fn snapshot_current(
 }
 
 /// Apply setup entries by toggling files to match desired state.
+/// Items NOT in the setup are disabled (exclusive activation).
 /// Returns a list of error messages for items that failed.
 pub fn apply_setup_entries(
     entries: &[SetupEntry],
@@ -102,8 +103,21 @@ pub fn apply_setup_entries(
     let (agents, skills, commands) = crate::scanner::scan_all(base_dir, scope);
     let all_items: Vec<&AgentInfo> = agents.iter().chain(skills.iter()).chain(commands.iter()).collect();
 
+    // Build a set of IDs in this setup for quick lookup
+    let setup_ids: std::collections::HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+
+    // 1. Disable all enabled items that are NOT in the setup
+    for item in &all_items {
+        if item.enabled && !setup_ids.contains(item.id.as_str()) {
+            let path = PathBuf::from(&item.path);
+            if let Err(e) = toggler::toggle(&path, false) {
+                failures.push(format!("{}: {}", item.id, e));
+            }
+        }
+    }
+
+    // 2. Apply setup entries (enable/disable as specified)
     for entry in entries {
-        // Find matching item by id
         if let Some(item) = all_items.iter().find(|i| i.id == entry.id) {
             if item.enabled != entry.enabled {
                 let path = PathBuf::from(&item.path);
