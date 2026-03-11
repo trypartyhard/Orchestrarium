@@ -47,8 +47,11 @@ export function StatusBar() {
               ? `${basePath}${activeContext === "project" ? "/.claude" : ""}/commands/`
               : `${basePath}${activeContext === "project" ? "/.claude" : ""}/agents/`;
 
-  const contextLabel = activeContext === "project" ? "Project" : "Global";
-  const contextColor = activeContext === "project" ? "#66bb6a" : "#4fc3f7";
+  const projectName = activeContext === "project" && projectDir
+    ? projectDir.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop()
+    : null;
+  const contextLabel = activeContext === "project" ? (projectName ? `Project "${projectName}"` : "Project") : "Global";
+  const contextColor = activeContext === "project" ? "#ffa726" : "#4fc3f7";
 
   return (
     <footer className="flex h-6 shrink-0 items-center justify-between bg-[#111116] px-4 font-mono text-[11px] text-[#56565f]">

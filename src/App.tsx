@@ -88,7 +88,7 @@ function App() {
                   const selected = await open({ directory: true });
                   if (selected) await storeSetProjectDir(selected);
                 }}
-                className="rounded-lg border border-[#66bb6a]/30 bg-[#66bb6a]/10 px-4 py-2 text-sm font-medium text-[#66bb6a] transition-colors hover:bg-[#66bb6a]/20"
+                className="rounded-lg border border-[#ffa726]/30 bg-[#ffa726]/10 px-4 py-2 text-sm font-medium text-[#ffa726] transition-colors hover:bg-[#ffa726]/20"
               >
                 Open Project Folder
               </button>
