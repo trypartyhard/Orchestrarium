@@ -24,6 +24,10 @@ import {
   Eye,
   Search,
   Info,
+  Globe,
+  FolderOpen,
+  RefreshCw,
+  Copy,
 } from "lucide-react";
 import { useEscapeKey } from "../lib/useEscapeKey";
 
@@ -105,8 +109,16 @@ const pages: Page[] = [
           </p>
         </div>
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
+          Orchestrarium supports both{" "}
+          <span className="font-semibold text-[#4fc3f7]">global</span>{" "}
+          <span className="text-[#56565f]">(~/.claude)</span> and{" "}
+          <span className="font-semibold text-[#ffa726]">project-level</span>{" "}
+          <span className="text-[#56565f]">(.claude/)</span> configurations.
+          Switch between them using the context switcher at the top of the sidebar.
+        </p>
+        <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
           The app has <span className="font-semibold text-[#e8e8ec]">six sections</span>,
-          accessible from the sidebar on the left:
+          accessible from the sidebar:
         </p>
         <div className="grid grid-cols-2 gap-2">
           <IconBox icon={LayoutDashboard} color="#4fc3f7" label="Setup" />
@@ -321,14 +333,25 @@ const pages: Page[] = [
               </>
             }
           />
+          <StepRow
+            step={6}
+            text={
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <RefreshCw className="inline h-3 w-3" /> Update
+                </span>{" "}
+                — appears when you modify an active setup (toggle, add, or remove
+                items). Click it to save changes back to the Library.
+              </>
+            }
+          />
         </div>
         <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
           <p className="text-[13px] text-[#b0b0b8]">
             <span className="font-semibold text-[#c0c0c8]">Active setup:</span>{" "}
             When you activate a setup from the Library, its name appears under
-            the header. If you make any changes (toggle items, add or remove),
-            an <span className="font-semibold text-[#4fc3f7]">Update</span> button
-            appears — click it to save the changes back to that setup.
+            the header. Any changes you make are tracked — use the Update button
+            to save them.
           </p>
         </div>
         <div className="rounded-lg border border-[#ffa726]/20 bg-[#ffa726]/5 px-4 py-3">
@@ -388,8 +411,10 @@ const pages: Page[] = [
                 <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
                   <Play className="inline h-3 w-3" /> Activate
                 </span>{" "}
-                to apply a setup — it enables/disables items on disk to match.
-                The setup name will appear in the Setup section header.
+                to apply a setup. This is{" "}
+                <span className="font-semibold text-[#e8e8ec]">exclusive</span>
+                : it enables only items in that setup and disables everything
+                else. The setup name appears in the Setup header.
               </>
             }
           />
@@ -499,6 +524,88 @@ const pages: Page[] = [
     ),
   },
   {
+    title: "Project Context",
+    content: (
+      <div className="flex flex-col gap-5">
+        <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
+          Orchestrarium works with two contexts — items can live in{" "}
+          <span className="font-semibold text-[#4fc3f7]">global</span>{" "}
+          <span className="text-[#56565f]">(~/.claude/)</span> or{" "}
+          <span className="font-semibold text-[#ffa726]">project</span>{" "}
+          <span className="text-[#56565f]">({"{project}"}/.claude/)</span>{" "}
+          directories. Switch between them using the context toggle at the top of
+          the sidebar.
+        </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#4fc3f7]/15">
+              <Globe className="h-3.5 w-3.5 text-[#4fc3f7]" />
+            </span>
+            <div>
+              <span className="text-sm font-semibold text-[#e8e8ec]">Global</span>
+              <p className="text-[12px] text-[#8a8a96]">
+                Items in <Kbd>~/.claude/</Kbd> — available in every project
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#ffa726]/15">
+              <FolderOpen className="h-3.5 w-3.5 text-[#ffa726]" />
+            </span>
+            <div>
+              <span className="text-sm font-semibold text-[#e8e8ec]">Project</span>
+              <p className="text-[12px] text-[#8a8a96]">
+                Items in your project's <Kbd>.claude/</Kbd> folder — scoped to that project
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <StepRow
+            step={1}
+            text={
+              <>
+                Click the{" "}
+                <FolderOpen className="mb-0.5 inline h-3.5 w-3.5 text-[#ffa726]" />{" "}
+                button in the sidebar to select a project folder.
+              </>
+            }
+          />
+          <StepRow
+            step={2}
+            text={
+              <>
+                Items show a{" "}
+                <span className="font-semibold text-[#e8e8ec]">scope badge</span>{" "}
+                — <Kbd>global</Kbd> or <Kbd>project</Kbd> — so you always know
+                where they live.
+              </>
+            }
+          />
+          <StepRow
+            step={3}
+            text={
+              <>
+                In project context, global items can be{" "}
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <Copy className="inline h-3 w-3" /> copied to project
+                </span>{" "}
+                — a local copy is created in the project directory.
+              </>
+            }
+          />
+        </div>
+        <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
+          <p className="text-[13px] text-[#66bb6a]">
+            <span className="font-semibold">Tip:</span> Each context has its own
+            Setup and Library entries. Switching context instantly shows items
+            from that directory.
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
     title: "Typical Workflow",
     content: (
       <div className="flex flex-col gap-5">
@@ -585,8 +692,7 @@ const pages: Page[] = [
           <p className="text-[13px] text-[#b0b0b8]">
             <Settings className="mb-0.5 inline h-3 w-3 text-[#56565f]" />{" "}
             <span className="font-semibold text-[#c0c0c8]">Settings</span>{" "}
-            — enable Advanced Features (CLAUDE.md profiles) and optionally
-            skip group notifications for experienced users.
+            — skip group notifications for experienced users.
           </p>
         </div>
       </div>
