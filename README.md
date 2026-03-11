@@ -8,9 +8,9 @@ A visual desktop app to browse, organize, and toggle Claude Code agents, skills,
 
 *Built entirely through conversation with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), without writing a single line of code manually.*
 
-[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.0_x64-setup.exe)
-[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.0_x64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.0_amd64.deb)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.1_x64-setup.exe)
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.1_x64.dmg)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/trypartyhard/Orchestrarium/releases/latest/download/Orchestrarium_0.2.1_amd64.deb)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri)](https://v2.tauri.app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -267,7 +267,7 @@ Thank you for reading this far — for me, that's already a small victory and mo
 
 ## Roadmap
 
-- ~~**Project-level scope**~~ ✅ — done in v0.2.0
+- ~~**Project-level scope**~~ ✅ — done in v0.2.1
 - **Subfolder support** — scan and manage agents in nested directories (e.g. `commands/gsd/*.md`)
 - **MCP server management** — configure and toggle MCP servers
 - **Agent creator** — create new agents directly from the UI

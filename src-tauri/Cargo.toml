@@ -1,6 +1,6 @@
 [package]
 name = "orchestrarium"
-version = "0.2.0"
+version = "0.2.1"
 description = "Orchestrarium — Agent & Skill Orchestration for Claude Code"
 authors = ["you"]
 edition = "2021"
