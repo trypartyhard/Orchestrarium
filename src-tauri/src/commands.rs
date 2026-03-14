@@ -1,6 +1,5 @@
-use std::sync::atomic::Ordering;
-
 use tauri::State;
+use tauri_plugin_dialog::DialogExt;
 
 use crate::claude_md;
 use crate::models::{AgentInfo, ToggleBatchItem};
@@ -42,56 +41,54 @@ async fn validate_path_in_allowed_roots(state: &State<'_, AppState>, path: &str)
     Err("Access denied: path must be inside an allowed .claude/ directory".into())
 }
 
-/// Validate that a path is inside the currently active context directory.
-async fn validate_path_for_mutation(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
-    let canonical = dunce::canonicalize(path)
-        .map_err(|e| format!("Invalid path: {}", e))?;
 
-    let active_dir = state.active_claude_dir().await?;
-    let active_canonical = dunce::canonicalize(&active_dir)
-        .unwrap_or_else(|_| active_dir);
-
-    if canonical.starts_with(&active_canonical) {
-        return Ok(());
-    }
-
-    Err("Access denied: path must be inside the active context directory".into())
-}
-
-/// Validate setup file I/O paths: allow .claude roots or user-chosen paths, block system dirs.
-/// Uses parent directory for canonicalization to support new (not-yet-existing) files.
-async fn validate_setup_file_path(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
-    if validate_path_in_allowed_roots(state, path).await.is_ok() {
-        return Ok(());
-    }
-    // For new files (export), canonicalize the parent directory instead
+/// Resolve and validate a toggle path against the active .claude directory.
+/// Only top-level files are supported:
+/// - `{section}/file.md`
+/// - `{section}/.disabled/file.md`
+fn resolve_toggle_path(
+    path: &str,
+    expected_section: Option<&str>,
+    active_claude_dir: &std::path::Path,
+) -> Result<(std::path::PathBuf, String), String> {
     let p = std::path::Path::new(path);
-    let dir = p.parent().ok_or("Invalid path: no parent directory")?;
-    let canonical_dir = dunce::canonicalize(dir)
-        .map_err(|e| format!("Invalid path: {}", e))?;
-    let dir_str = canonical_dir.to_string_lossy().to_lowercase();
-    let blocked = ["\\windows\\", "\\system32\\", "\\program files", "/etc/", "/usr/"];
-    if blocked.iter().any(|b| dir_str.contains(b)) {
-        return Err("Access denied: cannot access system directories".to_string());
-    }
-    Ok(())
-}
-
-/// Validate that a toggle path points to a .md file inside a valid section (or .disabled subdir).
-fn validate_toggle_path(path: &str, _section: &str) -> Result<(), String> {
-    let p = std::path::Path::new(path);
-    // Must be a .md file
     if p.extension().and_then(|e| e.to_str()) != Some("md") {
         return Err("Only .md files can be toggled".into());
     }
-    // Must be inside agents/, skills/, commands/ (or their .disabled/ subdirs)
-    let path_str = path.replace('\\', "/");
-    let valid_parents = ["/agents/", "/skills/", "/commands/",
-                         "/agents/.disabled/", "/skills/.disabled/", "/commands/.disabled/"];
-    if !valid_parents.iter().any(|p| path_str.contains(p)) {
-        return Err("File must be inside agents/, skills/, or commands/ directory".into());
+
+    let canonical = dunce::canonicalize(p).map_err(|e| format!("Invalid path: {}", e))?;
+    let canonical_root = dunce::canonicalize(active_claude_dir)
+        .unwrap_or_else(|_| active_claude_dir.to_path_buf());
+
+    if !canonical.starts_with(&canonical_root) {
+        return Err("Access denied: path must be inside the active .claude directory".into());
     }
-    Ok(())
+
+    let relative = canonical.strip_prefix(&canonical_root)
+        .map_err(|_| "Path is not inside active directory")?;
+    let parts: Vec<String> = relative
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect();
+
+    let (section, file_name) = match parts.as_slice() {
+        [section, file_name] => (section.as_str(), file_name.as_str()),
+        [section, disabled, file_name] if disabled == ".disabled" => (section.as_str(), file_name.as_str()),
+        _ => return Err("File must be a top-level entry inside section/ or section/.disabled/".into()),
+    };
+
+    validate_section(section)?;
+    if std::path::Path::new(file_name).extension().and_then(|ext| ext.to_str()) != Some("md") {
+        return Err("Only .md files can be toggled".into());
+    }
+
+    if let Some(expected_section) = expected_section {
+        if section != expected_section {
+            return Err(format!("Path does not match section '{}'", expected_section));
+        }
+    }
+
+    Ok((canonical, section.to_string()))
 }
 
 fn validate_section(section: &str) -> Result<(), String> {
@@ -310,43 +307,45 @@ pub async fn copy_item_to_project(
 #[tauri::command]
 #[specta::specta]
 pub async fn toggle_item(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     path: String,
     enable: bool,
     section: String,
 ) -> Result<AgentInfo, String> {
     validate_section(&section)?;
-    validate_toggle_path(&path, &section)?;
-    validate_path_for_mutation(&state, &path).await?;
-
     let base = state.active_claude_dir().await?;
+    let (canonical_path, resolved_section) = resolve_toggle_path(&path, Some(&section), &base)?;
     let scope = state.active_scope().await;
+    let locked_paths = state.acquire_toggle_paths(std::slice::from_ref(&canonical_path)).await?;
 
     // Suppress watcher events during self-initiated toggle
-    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
+    state.begin_suppression().await;
 
-    let file_path = std::path::PathBuf::from(&path);
-    let result = toggler::toggle(&file_path, enable);
+    let result = toggler::toggle(&canonical_path, enable);
 
-    // Brief delay then unsuppress, so debounced events from our own move are ignored
+    // Brief delay then unsuppress, flush pending if needed
     let watcher_state = state.watcher_state.clone();
+    let app_clone = app.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
+        crate::state::unsuppress_and_flush(&watcher_state, &app_clone).await;
     });
+
+    state.release_toggle_paths(&locked_paths).await;
 
     let new_path = result?;
 
     // Update cached state and return the item from the fresh scan
-    let agents = scanner::scan_section(&base, &section, scope);
+    let agents = scanner::scan_section(&base, &resolved_section, scope);
     let agent = agents
         .iter()
         .find(|a| a.path == new_path.to_string_lossy().replace('\\', "/"))
         .cloned()
         .unwrap_or_else(|| {
-            crate::parser::parse_agent_file(&new_path, &section, enable, scope)
+            crate::parser::parse_agent_file(&new_path, &resolved_section, enable, scope)
         });
-    match section.as_str() {
+    match resolved_section.as_str() {
         "agents" => *state.agents.lock().await = agents,
         "skills" => *state.skills.lock().await = agents,
         "commands" => *state.commands.lock().await = agents,
@@ -360,23 +359,26 @@ pub async fn toggle_item(
 #[tauri::command]
 #[specta::specta]
 pub async fn toggle_batch(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     items: Vec<ToggleBatchItem>,
 ) -> Result<Vec<String>, String> {
-    // Validate all paths before starting
-    for item in &items {
-        validate_toggle_path(&item.path, "batch")?;
-        validate_path_for_mutation(&state, &item.path).await?;
-    }
-
     let base = state.active_claude_dir().await?;
-    let scope = state.active_scope().await;
 
-    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
+    let mut canonical_paths = Vec::with_capacity(items.len());
+
+    // Validate all paths before starting using the active .claude root
+    for item in &items {
+        let (canonical, _) = resolve_toggle_path(&item.path, None, &base)?;
+        canonical_paths.push(canonical);
+    }
+    let scope = state.active_scope().await;
+    let locked_paths = state.acquire_toggle_paths(&canonical_paths).await?;
+
+    state.begin_suppression().await;
 
     let mut failures: Vec<String> = Vec::new();
-    for item in &items {
-        let file_path = std::path::PathBuf::from(&item.path);
+    for (item, file_path) in items.iter().zip(canonical_paths.iter()) {
         if let Err(e) = toggler::toggle(&file_path, item.enable) {
             failures.push(format!("{}: {}", item.path, e));
         }
@@ -389,10 +391,12 @@ pub async fn toggle_batch(
     *state.commands.lock().await = commands;
 
     let watcher_state = state.watcher_state.clone();
+    let app_clone = app.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
+        crate::state::unsuppress_and_flush(&watcher_state, &app_clone).await;
     });
+    state.release_toggle_paths(&locked_paths).await;
 
     Ok(failures)
 }
@@ -452,6 +456,17 @@ pub async fn create_setup(
     // Only include items that are in the provided setupIds
     let id_set: std::collections::HashSet<&str> = item_ids.iter().map(|s| s.as_str()).collect();
     let entries: Vec<_> = all_entries.into_iter().filter(|e| id_set.contains(e.id.as_str())).collect();
+    if entries.len() != item_ids.len() {
+        let entry_ids: std::collections::HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+        let missing_ids: Vec<String> = item_ids
+            .into_iter()
+            .filter(|id| !entry_ids.contains(id.as_str()))
+            .collect();
+        return Err(format!(
+            "Cannot create setup; missing item IDs: {}",
+            missing_ids.join(", ")
+        ));
+    }
     let setup = crate::setups::Setup {
         name: name.clone(),
         created_at: chrono::Utc::now().to_rfc3339(),
@@ -485,18 +500,20 @@ pub async fn delete_setup(state: State<'_, AppState>, name: String) -> Result<()
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_setup(
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
     name: String,
 ) -> Result<Vec<String>, String> {
-    state.watcher_state.suppress_count.fetch_add(1, Ordering::SeqCst);
+    state.begin_suppression().await;
 
     let result = apply_setup_inner(&state, &name).await;
 
     // Always schedule unsuppress, even on error
     let watcher_state = state.watcher_state.clone();
+    let app_clone = app.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        watcher_state.suppress_count.fetch_sub(1, Ordering::SeqCst);
+        crate::state::unsuppress_and_flush(&watcher_state, &app_clone).await;
     });
 
     result
@@ -518,11 +535,13 @@ async fn apply_setup_inner(
         .ok_or_else(|| format!("Setup '{}' not found", name))?
         .clone();
 
-    let failures = crate::setups::apply_setup_entries(&setup.entries, &base, scope)?;
+    let failures = crate::setups::apply_setup_entries(state.inner(), &setup.entries, &base, scope).await?;
 
-    // Mark as active
-    file.active = Some(name.to_string());
-    crate::setups::save_setups_to(&base, &file)?;
+    // Only mark as active if there were no failures (bug #6)
+    if failures.is_empty() {
+        file.active = Some(name.to_string());
+        crate::setups::save_setups_to(&base, &file)?;
+    }
 
     // Refresh cached state
     let (agents, skills, commands) = scanner::scan_all(&base, scope);
@@ -570,31 +589,84 @@ pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<cr
     Ok(setup)
 }
 
-// ─── Setup file I/O (for dialog-selected paths outside FS scope) ─
+// ─── Setup file I/O (backend-owned native dialogs) ─
 
-#[tauri::command]
-#[specta::specta]
-pub async fn write_setup_file(state: State<'_, AppState>, path: String, content: String) -> Result<(), String> {
-    if !path.ends_with(".json") {
-        return Err("Only .json files are allowed".into());
+fn dialog_path_to_pathbuf(path: tauri_plugin_dialog::FilePath) -> Result<std::path::PathBuf, String> {
+    path.into_path()
+        .map_err(|e| format!("Invalid dialog path: {}", e))
+}
+
+fn ensure_json_extension(mut path: std::path::PathBuf) -> std::path::PathBuf {
+    let has_json_extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+
+    if !has_json_extension {
+        path.set_extension("json");
     }
-    validate_setup_file_path(&state, &path).await?;
-    std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {}", e))
+
+    path
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn read_setup_file(state: State<'_, AppState>, path: String) -> Result<String, String> {
-    if !path.ends_with(".json") {
+pub async fn save_setup_file_with_dialog(
+    app: tauri::AppHandle,
+    suggested_name: String,
+    content: String,
+) -> Result<bool, String> {
+    let default_name = if suggested_name.trim().is_empty() {
+        "setup.json".to_string()
+    } else {
+        suggested_name
+    };
+
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .set_file_name(default_name)
+        .blocking_save_file()
+    else {
+        return Ok(false);
+    };
+
+    let path = ensure_json_extension(dialog_path_to_pathbuf(file_path)?);
+    std::fs::write(&path, content).map_err(|e| format!("Failed to write file: {}", e))?;
+    Ok(true)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn read_setup_file_with_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+
+    let path = dialog_path_to_pathbuf(file_path)?;
+    let is_json = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    if !is_json {
         return Err("Only .json files are allowed".into());
     }
-    validate_setup_file_path(&state, &path).await?;
+
     let content = std::fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read file: {}", e))?;
     if content.len() > 1_000_000 {
         return Err("File too large (max 1MB)".into());
     }
-    Ok(content)
+
+    Ok(Some(content))
 }
 
 // ─── File preview ───────────────────────────────────────────────
@@ -689,4 +761,37 @@ pub async fn rename_claude_profile(state: State<'_, AppState>, old_name: String,
     validate_name(&new_name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;
     claude_md::rename_profile_in(&orch_dir, &old_name, &new_name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_toggle_path;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_resolve_toggle_path_rejects_section_mismatch() {
+        let tmp = TempDir::new().unwrap();
+        let agents_dir = tmp.path().join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        let file = agents_dir.join("agent.md");
+        fs::write(&file, "---\nname: Agent\n---\n").unwrap();
+
+        let err = resolve_toggle_path(file.to_string_lossy().as_ref(), Some("skills"), tmp.path())
+            .unwrap_err();
+        assert!(err.contains("Path does not match section"));
+    }
+
+    #[test]
+    fn test_resolve_toggle_path_rejects_nested_files() {
+        let tmp = TempDir::new().unwrap();
+        let nested_dir = tmp.path().join("agents").join("nested");
+        fs::create_dir_all(&nested_dir).unwrap();
+        let file = nested_dir.join("agent.md");
+        fs::write(&file, "---\nname: Agent\n---\n").unwrap();
+
+        let err = resolve_toggle_path(file.to_string_lossy().as_ref(), Some("agents"), tmp.path())
+            .unwrap_err();
+        assert!(err.contains("top-level entry"));
+    }
 }

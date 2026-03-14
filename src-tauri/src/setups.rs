@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
+use std::io::Write;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::models::AgentInfo;
+use crate::state::AppState;
 use crate::toggler;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -48,14 +51,19 @@ pub fn load_setups_from(claude_dir: &Path) -> Result<SetupsFile, String> {
 
 pub fn save_setups_to(claude_dir: &Path, file: &SetupsFile) -> Result<(), String> {
     let path = get_setups_path(claude_dir);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Create dir error: {}", e))?;
-    }
+    let parent = path.parent().ok_or("Invalid setups path: no parent")?;
+    std::fs::create_dir_all(parent).map_err(|e| format!("Create dir error: {}", e))?;
+
     let json = serde_json::to_string_pretty(file).map_err(|e| e.to_string())?;
-    // Atomic write: write to temp file, then rename
-    let tmp_path = path.with_extension("json.tmp");
-    std::fs::write(&tmp_path, json).map_err(|e| format!("Write error: {}", e))?;
-    std::fs::rename(&tmp_path, &path).map_err(|e| format!("Rename error: {}", e))?;
+
+    // Atomic write using tempfile::NamedTempFile — handles Windows semantics
+    // (persist correctly replaces existing files on all platforms)
+    let mut tmp = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|e| format!("Failed to create temp file: {}", e))?;
+    tmp.write_all(json.as_bytes())
+        .map_err(|e| format!("Write error: {}", e))?;
+    tmp.persist(&path)
+        .map_err(|e| format!("Failed to persist setups file: {}", e))?;
     Ok(())
 }
 
@@ -92,7 +100,8 @@ pub fn snapshot_current(
 /// Apply setup entries by toggling files to match desired state.
 /// Items NOT in the setup are disabled (exclusive activation).
 /// Returns a list of error messages for items that failed.
-pub fn apply_setup_entries(
+pub async fn apply_setup_entries(
+    state: &AppState,
     entries: &[SetupEntry],
     base_dir: &Path,
     scope: &str,
@@ -102,39 +111,75 @@ pub fn apply_setup_entries(
     // Scan current state for all sections
     let (agents, skills, commands) = crate::scanner::scan_all(base_dir, scope);
     let all_items: Vec<&AgentInfo> = agents.iter().chain(skills.iter()).chain(commands.iter()).collect();
+    let all_items_by_id: HashMap<&str, &AgentInfo> = all_items
+        .iter()
+        .map(|item| (item.id.as_str(), *item))
+        .collect();
 
     // Build a set of IDs in this setup for quick lookup
-    let setup_ids: std::collections::HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+    let setup_ids: HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+
+    let missing_ids: Vec<String> = entries
+        .iter()
+        .filter(|entry| !all_items_by_id.contains_key(entry.id.as_str()))
+        .map(|entry| entry.id.clone())
+        .collect();
+    if !missing_ids.is_empty() {
+        return Ok(missing_ids
+            .into_iter()
+            .map(|id| format!("Missing item in setup: {}", id))
+            .collect());
+    }
+
+    let mut operations: Vec<(String, PathBuf, bool)> = Vec::new();
 
     // 1. Disable all enabled items that are NOT in the setup
     for item in &all_items {
         if item.enabled && !setup_ids.contains(item.id.as_str()) {
-            let path = PathBuf::from(&item.path);
-            if let Err(e) = toggler::toggle(&path, false) {
-                failures.push(format!("{}: {}", item.id, e));
-            }
+            operations.push((item.id.clone(), PathBuf::from(&item.path), false));
         }
     }
 
     // 2. Apply setup entries (enable/disable as specified)
     for entry in entries {
-        if let Some(item) = all_items.iter().find(|i| i.id == entry.id) {
+        if let Some(item) = all_items_by_id.get(entry.id.as_str()) {
             if item.enabled != entry.enabled {
-                let path = PathBuf::from(&item.path);
-                if let Err(e) = toggler::toggle(&path, entry.enabled) {
-                    failures.push(format!("{}: {}", entry.id, e));
-                }
+                operations.push((entry.id.clone(), PathBuf::from(&item.path), entry.enabled));
             }
         }
-        // Skip items not found (may have been deleted)
     }
 
+    let lock_paths: Vec<PathBuf> = operations.iter().map(|(_, path, _)| path.clone()).collect();
+    let locked_paths = state.acquire_toggle_paths(&lock_paths).await?;
+    let mut applied_operations: Vec<(String, PathBuf, bool)> = Vec::new();
+
+    for (id, path, enable) in operations {
+        match toggler::toggle(&path, enable) {
+            Ok(new_path) => applied_operations.push((id, new_path, enable)),
+            Err(e) => {
+                failures.push(format!("{}: {}", id, e));
+                break;
+            }
+        }
+    }
+
+    if !failures.is_empty() {
+        for (id, new_path, enable) in applied_operations.into_iter().rev() {
+            if let Err(e) = toggler::toggle(&new_path, !enable) {
+                failures.push(format!("rollback {}: {}", id, e));
+            }
+        }
+    }
+
+    state.release_toggle_paths(&locked_paths).await;
     Ok(failures)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::AppState;
+    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -263,5 +308,31 @@ mod tests {
         assert!(entries[0].enabled);
         assert_eq!(entries[1].id, "skills/b");
         assert!(!entries[1].enabled);
+    }
+
+    #[test]
+    fn test_apply_setup_entries_aborts_on_missing_ids_without_mutation() {
+        let tmp = TempDir::new().unwrap();
+        let agents_dir = tmp.path().join("agents");
+        fs::create_dir_all(&agents_dir).unwrap();
+        fs::write(agents_dir.join("one.md"), "---\nname: One\n---\n").unwrap();
+
+        let state = AppState::new(tmp.path().to_path_buf());
+        let entries = vec![SetupEntry {
+            id: "agents/missing".to_string(),
+            enabled: true,
+        }];
+
+        let failures = tauri::async_runtime::block_on(apply_setup_entries(
+            &state,
+            &entries,
+            tmp.path(),
+            "global",
+        ))
+        .unwrap();
+
+        assert_eq!(failures, vec!["Missing item in setup: agents/missing".to_string()]);
+        assert!(agents_dir.join("one.md").exists());
+        assert!(!agents_dir.join(".disabled").join("one.md").exists());
     }
 }

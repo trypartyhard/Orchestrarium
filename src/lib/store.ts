@@ -33,6 +33,11 @@ import {
 export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
+
+const ITEM_SECTIONS: readonly string[] = ["agents", "skills", "commands"];
+export function isItemSection(s: string): s is ItemSection {
+  return ITEM_SECTIONS.includes(s);
+}
 // ContextType re-exported from bindings
 export type { ContextType } from "../bindings";
 
@@ -113,25 +118,26 @@ const sectionLoaders = {
   commands: getCommands,
 } as const;
 
-function setupIdsKey(): string {
-  const ctx = localStorage.getItem("orchestrarium-context") || "global";
-  if (ctx === "project") {
-    const proj = localStorage.getItem("orchestrarium-project-dir") || "";
-    return `orchestrarium-setup-ids:project:${proj}`;
+function setupIdsKey(ctx?: ContextType, proj?: string | null): string {
+  // Use provided params (from Zustand state) instead of reading localStorage directly
+  const context = ctx ?? (localStorage.getItem("orchestrarium-context") as ContextType) ?? "global";
+  if (context === "project") {
+    const projectDir = proj ?? localStorage.getItem("orchestrarium-project-dir") ?? "";
+    return `orchestrarium-setup-ids:project:${projectDir}`;
   }
   return "orchestrarium-setup-ids:global";
 }
 
-function loadPersistedSetupIds(): Set<string> {
+function loadPersistedSetupIds(ctx?: ContextType, proj?: string | null): Set<string> {
   try {
-    const raw = localStorage.getItem(setupIdsKey());
+    const raw = localStorage.getItem(setupIdsKey(ctx, proj));
     if (raw) return new Set(JSON.parse(raw));
   } catch { /* ignore */ }
   return new Set<string>();
 }
 
-function persistSetupIds(ids: Set<string>) {
-  localStorage.setItem(setupIdsKey(), JSON.stringify([...ids]));
+function persistSetupIds(ids: Set<string>, ctx?: ContextType, proj?: string | null) {
+  localStorage.setItem(setupIdsKey(ctx, proj), JSON.stringify([...ids]));
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -175,7 +181,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   reloadForContext: async () => {
     // Reset setup state for new context — load context-scoped setupIds
-    const ids = loadPersistedSetupIds();
+    const ids = loadPersistedSetupIds(get().activeContext, get().projectDir);
     set({
       searchQuery: "", filter: "all",
       setupIdsInitialized: false,
@@ -243,9 +249,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   toggleItem: async (item) => {
     if (togglingIds.has(item.id)) return false;
+    if (!isItemSection(item.section)) {
+      get().showToast(`Invalid section: ${item.section}`, "error");
+      return false;
+    }
     togglingIds.add(item.id);
 
-    const section = item.section as "agents" | "skills" | "commands";
+    const section = item.section;
     const newEnabled = !item.enabled;
 
     // Optimistic update
@@ -263,15 +273,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
       await get().silentReload(section);
       return true;
     } catch {
-      // Revert
-      set(
-        (state) =>
-          ({
-            [section]: state[section].map((a: AgentInfo) =>
-              a.id === item.id ? { ...a, enabled: item.enabled } : a,
-            ),
-          }) as Partial<AppStore>,
-      );
+      // Revert via fresh reload instead of stale closure (bug #8)
+      await get().silentReload(section);
       get().showToast(`Failed to toggle ${item.name}`, "error");
       return false;
     } finally {
@@ -280,8 +283,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   toggleGroup: async (items, enable) => {
-    const section = items[0]?.section as "agents" | "skills" | "commands";
-    if (!section) return true;
+    const rawSection = items[0]?.section;
+    if (!rawSection || !isItemSection(rawSection)) return true;
+    const section = rawSection;
 
     // Filter to only items that need toggling and not already in-flight
     const toToggle = items.filter((i) => i.enabled !== enable && !togglingIds.has(i.id));
@@ -330,11 +334,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const all = [...get().agents, ...get().skills, ...get().commands];
     if (all.length === 0) return;
     const allIds = new Set(all.map((i) => i.id));
+    const ctx = get().activeContext;
+    const proj = get().projectDir;
     if (!get().setupIdsInitialized) {
-      const persisted = loadPersistedSetupIds();
+      const persisted = loadPersistedSetupIds(ctx, proj);
       // First run: use persisted if available, otherwise seed from enabled items
       // In project context, only seed from project-local items (not global)
-      const ctx = get().activeContext;
       const seedItems = ctx === "project"
         ? all.filter((i) => i.enabled && i.scope === "project")
         : all.filter((i) => i.enabled);
@@ -346,18 +351,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const ids = persisted.size > 0
         ? new Set([...persisted].filter((id) => projectLocalIds.has(id)))
         : new Set(seedItems.map((i) => i.id));
-      persistSetupIds(ids);
+      persistSetupIds(ids, ctx, proj);
       set({ setupIds: ids, setupIdsInitialized: true });
     } else {
       // Subsequent runs: only prune deleted items, never auto-add
       const current = get().setupIds;
-      const ctx = get().activeContext;
       const validIds = ctx === "project"
         ? new Set(all.filter((i) => i.scope === "project").map((i) => i.id))
         : allIds;
       const next = new Set([...current].filter((id) => validIds.has(id)));
       if (next.size !== current.size) {
-        persistSetupIds(next);
+        persistSetupIds(next, ctx, proj);
         set({ setupIds: next });
       }
     }
@@ -367,7 +371,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => {
       const next = new Set(state.setupIds);
       next.add(id);
-      persistSetupIds(next);
+      persistSetupIds(next, get().activeContext, get().projectDir);
       return { setupIds: next };
     });
   },
@@ -376,7 +380,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => {
       const next = new Set(state.setupIds);
       next.delete(id);
-      persistSetupIds(next);
+      persistSetupIds(next, get().activeContext, get().projectDir);
       return { setupIds: next };
     });
   },
@@ -393,7 +397,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }
     }
     const empty = new Set<string>();
-    persistSetupIds(empty);
+    persistSetupIds(empty, get().activeContext, get().projectDir);
     set({ setupIds: empty, activeSetup: null, setupSnapshot: [] });
     await clearActiveSetupIPC();
     await get().silentReload("setup");
@@ -408,16 +412,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadSetups: async (opts) => {
     try {
+      const previousActiveSetup = get().activeSetup;
       const [setups, activeSetup] = await Promise.all([
         getSetupsIPC(),
         getActiveSetupIPC(),
       ]);
       set({ setups, activeSetup });
       // Restore snapshot from saved setup if active and snapshot is empty
-      if (!opts?.skipSnapshot && activeSetup && get().setupSnapshot.length === 0) {
+      const shouldRefreshSnapshot =
+        !opts?.skipSnapshot
+        && !!activeSetup
+        && (get().setupSnapshot.length === 0 || activeSetup !== previousActiveSetup);
+      if (shouldRefreshSnapshot && activeSetup) {
         const active = setups.find((s) => s.name === activeSetup);
         if (active) {
-          const ids = get().setupIds.size > 0 ? get().setupIds : loadPersistedSetupIds();
+          const ids = get().setupIds.size > 0 ? get().setupIds : loadPersistedSetupIds(get().activeContext, get().projectDir);
           set({ setupSnapshot: active.entries
             .filter((e) => ids.has(e.id))
             .map((e) => ({ id: e.id, enabled: e.enabled })) });
@@ -466,20 +475,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
         getCommands(),
       ]);
       set({ agents, skills, commands });
-      // Sync setupIds to match the newly applied state
-      const all = [...agents, ...skills, ...commands];
-      const ids = new Set(all.filter((i) => i.enabled).map((i) => i.id));
-      persistSetupIds(ids);
-      // Save snapshot of applied state for change detection
-      const snapshot = all
-        .filter((i) => ids.has(i.id))
-        .map((i) => ({ id: i.id, enabled: i.enabled }));
-      set({ setupIds: ids, setupSnapshot: snapshot });
       if (failures.length > 0) {
-        get().showToast(`Setup applied with ${failures.length} error(s)`, "error");
+        throw new Error(`Setup applied with ${failures.length} error(s)`);
       }
-    } catch {
-      get().showToast("Failed to apply setup", "error");
+
+      const appliedSetup = get().setups.find((setup) => setup.name === name);
+      if (!appliedSetup) {
+        throw new Error("Failed to resolve applied setup");
+      }
+
+      const ids = new Set(appliedSetup.entries.map((entry) => entry.id));
+      const snapshot = appliedSetup.entries.map((entry) => ({ id: entry.id, enabled: entry.enabled }));
+      persistSetupIds(ids, get().activeContext, get().projectDir);
+      set({ setupIds: ids, setupSnapshot: snapshot });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to apply setup";
+      get().showToast(message, "error");
       throw new Error("operation failed");
     }
   },
@@ -606,9 +617,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   copyItemToProject: async (item) => {
     try {
-      await copyItemToProjectIPC(item.path, item.section as "agents" | "skills" | "commands");
+      if (!isItemSection(item.section)) {
+        get().showToast(`Invalid section: ${item.section}`, "error");
+        throw new Error("operation failed");
+      }
+      await copyItemToProjectIPC(item.path, item.section);
       // Reload the section to pick up the new project-local copy
-      const section = item.section as "agents" | "skills" | "commands";
+      const section = item.section;
       const loader = sectionLoaders[section];
       const data = await loader();
       set({ [section]: data } as Partial<AppStore>);

@@ -1,11 +1,39 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
 use tokio::sync::Mutex;
 
 use crate::models::AgentInfo;
 use crate::watcher::WatcherState;
+
+pub struct WatcherSuppressionState {
+    pub count: u32,
+    pub pending_refresh: bool,
+}
+
+/// Helper: decrement suppression count and emit a deferred refresh if needed.
+pub async fn unsuppress_and_flush(
+    watcher_state: &WatcherState,
+    app_handle: &tauri::AppHandle,
+) {
+    let should_emit = {
+        let mut suppression = watcher_state.suppression.lock().await;
+        if suppression.count > 0 {
+            suppression.count -= 1;
+        }
+        if suppression.count == 0 && suppression.pending_refresh {
+            suppression.pending_refresh = false;
+            true
+        } else {
+            false
+        }
+    };
+
+    if should_emit {
+        let _ = tauri::Emitter::emit(app_handle, "fs-changed", ());
+    }
+}
 
 pub struct AppState {
     pub agents: Mutex<Vec<AgentInfo>>,
@@ -17,6 +45,8 @@ pub struct AppState {
     pub watcher_state: Arc<WatcherState>,
     /// Serializes read-modify-write operations on setups.json
     pub setups_lock: Mutex<()>,
+    /// Tracks canonical paths of files currently being toggled (TOCTOU guard)
+    pub toggling_paths: Mutex<HashSet<PathBuf>>,
 }
 
 impl AppState {
@@ -29,10 +59,53 @@ impl AppState {
             active_context: Mutex::new("global".to_string()),
             project_dir: Mutex::new(None),
             watcher_state: Arc::new(WatcherState {
-                suppress_count: AtomicU32::new(0),
+                suppression: Mutex::new(WatcherSuppressionState {
+                    count: 0,
+                    pending_refresh: false,
+                }),
                 project_watcher_tx: Mutex::new(None),
             }),
             setups_lock: Mutex::new(()),
+            toggling_paths: Mutex::new(HashSet::new()),
+        }
+    }
+
+    pub async fn begin_suppression(&self) {
+        let mut suppression = self.watcher_state.suppression.lock().await;
+        suppression.count += 1;
+    }
+
+    pub async fn acquire_toggle_paths(
+        &self,
+        paths: &[PathBuf],
+    ) -> Result<Vec<PathBuf>, String> {
+        let mut unique_paths = Vec::new();
+        let mut seen = HashSet::new();
+
+        for path in paths {
+            let canonical = dunce::canonicalize(path)
+                .map_err(|e| format!("Invalid path: {}", e))?;
+            if seen.insert(canonical.clone()) {
+                unique_paths.push(canonical);
+            }
+        }
+
+        let mut toggling = self.toggling_paths.lock().await;
+        if let Some(path) = unique_paths.iter().find(|path| toggling.contains(*path)) {
+            return Err(format!("File is already being toggled: {}", path.display()));
+        }
+
+        for path in &unique_paths {
+            toggling.insert(path.clone());
+        }
+
+        Ok(unique_paths)
+    }
+
+    pub async fn release_toggle_paths(&self, paths: &[PathBuf]) {
+        let mut toggling = self.toggling_paths.lock().await;
+        for path in paths {
+            toggling.remove(path);
         }
     }
 

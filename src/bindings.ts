@@ -120,14 +120,17 @@ export async function importSetup(json: string): Promise<Setup> {
   return await invoke<Setup>("import_setup", { json });
 }
 
-// ─── Setup file I/O (for dialog-selected paths outside FS scope) ─
+// ─── Setup file I/O via backend-owned dialogs ─
 
-export async function writeSetupFile(path: string, content: string): Promise<void> {
-  return await invoke<void>("write_setup_file", { path, content });
+export async function saveSetupFileWithDialog(
+  suggestedName: string,
+  content: string,
+): Promise<boolean> {
+  return await invoke<boolean>("save_setup_file_with_dialog", { suggestedName, content });
 }
 
-export async function readSetupFile(path: string): Promise<string> {
-  return await invoke<string>("read_setup_file", { path });
+export async function readSetupFileWithDialog(): Promise<string | null> {
+  return await invoke<string | null>("read_setup_file_with_dialog");
 }
 
 // ─── File preview ───────────────────────────────────────────────

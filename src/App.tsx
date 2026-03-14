@@ -40,6 +40,7 @@ function App() {
             resolvedContext = savedContext;
           } catch {
             localStorage.removeItem("orchestrarium-project-dir");
+            localStorage.setItem("orchestrarium-context", "global");
             useAppStore.setState({ projectDir: null, activeContext: "global" });
           }
         }

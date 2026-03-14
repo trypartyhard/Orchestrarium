@@ -18,6 +18,33 @@ pub fn scan_section(base_dir: &Path, section: &str, scope: &str) -> Vec<AgentInf
     let disabled_dir = section_dir.join(".disabled");
     scan_dir(&disabled_dir, section, false, scope, &mut agents);
 
+    // Deduplicate: if same filename exists enabled + disabled, keep enabled, warn about dupe
+    let mut seen = std::collections::HashMap::<String, usize>::new();
+    let mut to_remove = Vec::new();
+    for (i, agent) in agents.iter().enumerate() {
+        if let Some(&prev_idx) = seen.get(&agent.filename) {
+            // Duplicate found — keep the enabled one
+            if agent.enabled && !agents[prev_idx].enabled {
+                to_remove.push(prev_idx);
+                seen.insert(agent.filename.clone(), i);
+            } else {
+                to_remove.push(i);
+            }
+            eprintln!(
+                "Warning: duplicate file '{}' found in both enabled and disabled for {}/{}",
+                agent.filename, scope, section
+            );
+        } else {
+            seen.insert(agent.filename.clone(), i);
+        }
+    }
+    // Remove duplicates in reverse order to preserve indices
+    to_remove.sort_unstable();
+    to_remove.dedup();
+    for idx in to_remove.into_iter().rev() {
+        agents.remove(idx);
+    }
+
     groups::assign_groups(&mut agents);
     agents
 }
@@ -28,14 +55,21 @@ fn scan_dir(dir: &Path, section: &str, enabled: bool, scope: &str, agents: &mut 
         Err(_) => return,
     };
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            if let Some(ext) = path.extension() {
-                if ext == "md" {
-                    let agent = parser::parse_agent_file(&path, section, enabled, scope);
-                    agents.push(agent);
+    for entry in entries {
+        match entry {
+            Ok(e) => {
+                let path = e.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "md" {
+                            let agent = parser::parse_agent_file(&path, section, enabled, scope);
+                            agents.push(agent);
+                        }
+                    }
                 }
+            }
+            Err(err) => {
+                eprintln!("Warning: failed to read entry in {}: {}", dir.display(), err);
             }
         }
     }

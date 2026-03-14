@@ -32,15 +32,33 @@ pub fn toggle(path: &Path, enable: bool) -> Result<PathBuf, String> {
         disabled_dir.join(filename)
     };
 
-    // If destination already exists (e.g. duplicate from plugins), overwrite it
-    if target.exists() {
-        fs::remove_file(&target)
-            .map_err(|e| format!("Failed to remove existing {}: {}", target.display(), e))?;
+    // Safe overwrite: if destination exists, back it up before rename.
+    // This prevents data loss if rename fails (bug #1: delete-before-rename).
+    let backup = target.with_extension("md.bak");
+    let has_backup = if target.exists() {
+        fs::rename(&target, &backup)
+            .map_err(|e| format!("Failed to backup {}: {}", target.display(), e))?;
+        true
+    } else {
+        false
+    };
+
+    match fs::rename(path, &target) {
+        Ok(()) => {
+            // Success — clean up backup
+            if has_backup {
+                let _ = fs::remove_file(&backup);
+            }
+            Ok(target)
+        }
+        Err(e) => {
+            // Rename failed — restore backup so no data is lost
+            if has_backup {
+                let _ = fs::rename(&backup, &target);
+            }
+            Err(format!("Failed to move file: {}", e))
+        }
     }
-
-    fs::rename(path, &target).map_err(|e| format!("Failed to move file: {}", e))?;
-
-    Ok(target)
 }
 
 #[cfg(test)]
@@ -90,6 +108,27 @@ mod tests {
     fn test_nonexistent_file_returns_error() {
         let result = toggle(Path::new("/tmp/nonexistent-12345.md"), false);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_toggle_with_existing_target_preserves_via_backup() {
+        let tmp = TempDir::new().unwrap();
+        let disabled_dir = tmp.path().join(".disabled");
+        fs::create_dir_all(&disabled_dir).unwrap();
+
+        // Create source (enabled) and a duplicate at target (disabled)
+        let source = tmp.path().join("agent.md");
+        let target = disabled_dir.join("agent.md");
+        fs::write(&source, "source content").unwrap();
+        fs::write(&target, "target content").unwrap();
+
+        // Disable should move source to target, backup should be cleaned up
+        let result = toggle(&source, false).unwrap();
+        assert_eq!(result, target);
+        assert_eq!(fs::read_to_string(&result).unwrap(), "source content");
+        assert!(!source.exists());
+        // Backup should be cleaned up
+        assert!(!target.with_extension("md.bak").exists());
     }
 
     #[test]

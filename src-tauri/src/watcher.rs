@@ -1,6 +1,5 @@
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
@@ -8,9 +7,25 @@ use tokio::sync::Mutex;
 
 /// Tracks suppression count and project watcher control.
 pub struct WatcherState {
-    pub suppress_count: AtomicU32,
+    pub suppression: Mutex<crate::state::WatcherSuppressionState>,
     /// Channel to send reconfigure commands to the project watcher thread.
     pub project_watcher_tx: Mutex<Option<std::sync::mpsc::Sender<Option<PathBuf>>>>,
+}
+
+fn emit_or_defer_refresh(watcher_state: &WatcherState, app: &AppHandle) {
+    let should_emit = {
+        let mut suppression = watcher_state.suppression.blocking_lock();
+        if suppression.count > 0 {
+            suppression.pending_refresh = true;
+            false
+        } else {
+            true
+        }
+    };
+
+    if should_emit {
+        let _ = app.emit("fs-changed", ());
+    }
 }
 
 /// Start watching ~/.claude/{agents,skills,commands} directories (global watcher).
@@ -56,17 +71,13 @@ pub fn start_watcher(
         loop {
             match rx.recv() {
                 Ok(Ok(events)) => {
-                    if ws_global.suppress_count.load(Ordering::SeqCst) > 0 {
-                        continue;
-                    }
-
                     let has_md = events.iter().any(|e| {
                         matches!(e.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous)
                             && e.path.extension().map_or(false, |ext| ext == "md")
                     });
 
                     if has_md {
-                        let _ = app_global.emit("fs-changed", ());
+                        emit_or_defer_refresh(&ws_global, &app_global);
                     }
                 }
                 Ok(Err(e)) => {
@@ -77,7 +88,15 @@ pub fn start_watcher(
         }
     });
 
-    init_rx.recv().map_err(|_| "Watcher thread failed to start".to_string())??;
+    match init_rx.recv() {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => {
+            eprintln!("Warning: global watcher failed to start: {}. Continuing without global auto-refresh.", e);
+        }
+        Err(_) => {
+            eprintln!("Warning: global watcher thread failed to report status. Continuing without global auto-refresh.");
+        }
+    }
 
     // ─── Project watcher (dynamic, reconfigurable) ──────────────
     let (project_tx, project_rx) = std::sync::mpsc::channel::<Option<PathBuf>>();
@@ -92,14 +111,17 @@ pub fn start_watcher(
     let app_project = app;
 
     std::thread::spawn(move || {
-
         let mut current_debouncer: Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>> = None;
-        let (event_tx, event_rx) = std::sync::mpsc::channel();
+        let mut current_event_rx: Option<std::sync::mpsc::Receiver<notify_debouncer_mini::DebounceEventResult>> = None;
 
         loop {
             // Check for reconfigure commands (non-blocking if we have an active watcher)
             let reconfig = if current_debouncer.is_some() {
-                project_rx.try_recv().ok()
+                match project_rx.try_recv() {
+                    Ok(cmd) => Some(cmd),
+                    Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                }
             } else {
                 // No active watcher, block until we get a command
                 match project_rx.recv() {
@@ -111,14 +133,14 @@ pub fn start_watcher(
             if let Some(new_project) = reconfig {
                 // Drop old watcher
                 current_debouncer = None;
+                current_event_rx = None;
 
                 if let Some(project_root) = new_project {
                     let claude_dir = project_root.join(".claude");
                     let sections = ["agents", "skills", "commands"];
+                    let (event_tx, event_rx) = std::sync::mpsc::channel();
 
-                    // Create a new debouncer reusing the same event channel
-                    let new_event_tx = event_tx.clone();
-                    match new_debouncer(Duration::from_millis(300), new_event_tx) {
+                    match new_debouncer(Duration::from_millis(300), event_tx) {
                         Ok(mut debouncer) => {
                             for section in &sections {
                                 let dir = claude_dir.join(section);
@@ -127,6 +149,7 @@ pub fn start_watcher(
                                     eprintln!("Warning: failed to watch project {}: {}", dir.display(), e);
                                 }
                             }
+                            current_event_rx = Some(event_rx);
                             current_debouncer = Some(debouncer);
                             let _ = app_project.emit("fs-changed", ());
                         }
@@ -139,18 +162,16 @@ pub fn start_watcher(
             }
 
             // Process file events from project watcher
-            if current_debouncer.is_some() {
+            if let Some(event_rx) = current_event_rx.as_ref() {
                 match event_rx.try_recv() {
                     Ok(Ok(events)) => {
-                        if ws_project.suppress_count.load(Ordering::SeqCst) > 0 {
-                            continue;
-                        }
                         let has_md = events.iter().any(|e| {
                             matches!(e.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous)
                                 && e.path.extension().map_or(false, |ext| ext == "md")
                         });
+
                         if has_md {
-                            let _ = app_project.emit("fs-changed", ());
+                            emit_or_defer_refresh(&ws_project, &app_project);
                         }
                     }
                     Ok(Err(e)) => {

@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { Play, Trash2, Download, Upload, Clock, Bot, Sparkles, Terminal, Search } from "lucide-react";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { writeSetupFile, readSetupFile } from "../bindings";
+import { saveSetupFileWithDialog, readSetupFileWithDialog } from "../bindings";
 import { useAppStore, type ContextType } from "../lib/store";
 import { useEscapeKey } from "../lib/useEscapeKey";
 
@@ -59,27 +58,20 @@ export function LibraryPage() {
       parsed.project_label = projectDir.replace(/\\/g, "/").split("/").pop() || "";
     }
     const json = JSON.stringify(parsed, null, 2);
-    const filePath = await save({
-      defaultPath: `${name}.json`,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (filePath) {
-      try {
-        await writeSetupFile(filePath, json);
+    try {
+      const saved = await saveSetupFileWithDialog(`${name}.json`, json);
+      if (saved) {
         showToast(`Setup "${name}" exported`);
-      } catch {
-        showToast("Failed to export file", "error");
       }
+    } catch {
+      showToast("Failed to export file", "error");
     }
   };
 
   const handleImport = async () => {
-    const filePath = await open({
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (!filePath) return;
     try {
-      const content = await readSetupFile(filePath);
+      const content = await readSetupFileWithDialog();
+      if (!content) return;
       const parsed = JSON.parse(content);
       const name = parsed.name as string;
       const sourceContext = (parsed.context_type as ContextType) || "global";

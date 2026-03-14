@@ -28,6 +28,8 @@ specta = { version = "=2.0.0-rc.22", features = ["derive"] }
 specta-typescript = "0.0.9"
 dirs = "6"
 dunce = "1"
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-single-instance = "2.4.0"
 
