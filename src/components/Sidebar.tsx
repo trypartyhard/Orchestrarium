@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Bot, Sparkles, Terminal, Library, FileText, Settings, BookOpen, Globe, FolderOpen, X } from "lucide-react";
+import { LayoutDashboard, Bot, Sparkles, Terminal, Plug, Library, FileText, Settings, BookOpen, Globe, FolderOpen, X } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAppStore, type Section } from "../lib/store";
 import { TutorialModal } from "./TutorialModal";
@@ -10,6 +10,7 @@ const sections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
   { key: "commands", label: "Commands", icon: Terminal },
+  { key: "mcp", label: "MCP Servers", icon: Plug },
   { key: "library", label: "Library", icon: Library },
   { key: "claude-md", label: "CLAUDE.md", icon: FileText },
 ];

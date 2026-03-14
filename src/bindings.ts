@@ -53,6 +53,54 @@ export type Setup = {
   entries: SetupEntry[];
 };
 
+export type McpServerType = "command" | "http" | "sse";
+export type McpServerSource = "claudeJson" | "mcpJson";
+export type McpScope = "global" | "project";
+
+export type McpServerSummary = {
+  id: string;
+  name: string;
+  source: McpServerSource;
+  scope: McpScope;
+  enabled: boolean;
+  serverType: McpServerType;
+  projectPath: string | null;
+  canToggle: boolean;
+  canEdit: boolean;
+  redactedPreview: string;
+};
+
+export type EditableMcpServer = {
+  id: string;
+  name: string;
+  serverType: McpServerType;
+  command: string | null;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  headers: Record<string, string>;
+};
+
+export type CreateMcpServerInput = {
+  name: string;
+  serverType: McpServerType;
+  command: string | null;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  headers: Record<string, string>;
+};
+
+export type UpdateMcpServerInput = {
+  id: string;
+  serverType: McpServerType;
+  command: string | null;
+  args: string[];
+  env: Record<string, string>;
+  url: string | null;
+  headers: Record<string, string>;
+};
+
 export async function getAgents(): Promise<AgentInfo[]> {
   return await invoke<AgentInfo[]>("get_agents");
 }
@@ -63,6 +111,37 @@ export async function getSkills(): Promise<AgentInfo[]> {
 
 export async function getCommands(): Promise<AgentInfo[]> {
   return await invoke<AgentInfo[]>("get_commands");
+}
+
+export async function getMcpServers(): Promise<McpServerSummary[]> {
+  return await invoke<McpServerSummary[]>("get_mcp_servers");
+}
+
+export async function getMcpServerDetail(id: string): Promise<EditableMcpServer> {
+  return await invoke<EditableMcpServer>("get_mcp_server_detail", { id });
+}
+
+export async function toggleMcpServer(
+  id: string,
+  enable: boolean,
+): Promise<McpServerSummary> {
+  return await invoke<McpServerSummary>("toggle_mcp_server", { id, enable });
+}
+
+export async function createMcpServer(
+  input: CreateMcpServerInput,
+): Promise<McpServerSummary> {
+  return await invoke<McpServerSummary>("create_mcp_server", { input });
+}
+
+export async function updateMcpServer(
+  input: UpdateMcpServerInput,
+): Promise<McpServerSummary> {
+  return await invoke<McpServerSummary>("update_mcp_server", { input });
+}
+
+export async function deleteMcpServer(id: string): Promise<void> {
+  return await invoke<void>("delete_mcp_server", { id });
 }
 
 export async function toggleItem(

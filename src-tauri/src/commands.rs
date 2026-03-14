@@ -8,21 +8,22 @@ use crate::state::AppState;
 use crate::toggler;
 
 const WINDOWS_RESERVED: &[&str] = &[
-    "CON", "PRN", "AUX", "NUL",
-    "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-    "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    "CON", "PRN", "AUX", "NUL", "COM0", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+    "COM8", "COM9", "LPT0", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
 /// Validate that a file path is inside allowed roots.
 /// Read access: allows both ~/.claude and <project>/.claude (if project set).
 /// Mutation access: use validate_path_for_mutation instead.
-async fn validate_path_in_allowed_roots(state: &State<'_, AppState>, path: &str) -> Result<(), String> {
-    let canonical = dunce::canonicalize(path)
-        .map_err(|e| format!("Invalid path: {}", e))?;
+async fn validate_path_in_allowed_roots(
+    state: &State<'_, AppState>,
+    path: &str,
+) -> Result<(), String> {
+    let canonical = dunce::canonicalize(path).map_err(|e| format!("Invalid path: {}", e))?;
 
     // Always allow ~/.claude
-    let global_canonical = dunce::canonicalize(&state.global_dir)
-        .unwrap_or_else(|_| state.global_dir.clone());
+    let global_canonical =
+        dunce::canonicalize(&state.global_dir).unwrap_or_else(|_| state.global_dir.clone());
     if canonical.starts_with(&global_canonical) {
         return Ok(());
     }
@@ -41,7 +42,6 @@ async fn validate_path_in_allowed_roots(state: &State<'_, AppState>, path: &str)
     Err("Access denied: path must be inside an allowed .claude/ directory".into())
 }
 
-
 /// Resolve and validate a toggle path against the active .claude directory.
 /// Only top-level files are supported:
 /// - `{section}/file.md`
@@ -57,14 +57,15 @@ fn resolve_toggle_path(
     }
 
     let canonical = dunce::canonicalize(p).map_err(|e| format!("Invalid path: {}", e))?;
-    let canonical_root = dunce::canonicalize(active_claude_dir)
-        .unwrap_or_else(|_| active_claude_dir.to_path_buf());
+    let canonical_root =
+        dunce::canonicalize(active_claude_dir).unwrap_or_else(|_| active_claude_dir.to_path_buf());
 
     if !canonical.starts_with(&canonical_root) {
         return Err("Access denied: path must be inside the active .claude directory".into());
     }
 
-    let relative = canonical.strip_prefix(&canonical_root)
+    let relative = canonical
+        .strip_prefix(&canonical_root)
         .map_err(|_| "Path is not inside active directory")?;
     let parts: Vec<String> = relative
         .components()
@@ -73,18 +74,31 @@ fn resolve_toggle_path(
 
     let (section, file_name) = match parts.as_slice() {
         [section, file_name] => (section.as_str(), file_name.as_str()),
-        [section, disabled, file_name] if disabled == ".disabled" => (section.as_str(), file_name.as_str()),
-        _ => return Err("File must be a top-level entry inside section/ or section/.disabled/".into()),
+        [section, disabled, file_name] if disabled == ".disabled" => {
+            (section.as_str(), file_name.as_str())
+        }
+        _ => {
+            return Err(
+                "File must be a top-level entry inside section/ or section/.disabled/".into(),
+            )
+        }
     };
 
     validate_section(section)?;
-    if std::path::Path::new(file_name).extension().and_then(|ext| ext.to_str()) != Some("md") {
+    if std::path::Path::new(file_name)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        != Some("md")
+    {
         return Err("Only .md files can be toggled".into());
     }
 
     if let Some(expected_section) = expected_section {
         if section != expected_section {
-            return Err(format!("Path does not match section '{}'", expected_section));
+            return Err(format!(
+                "Path does not match section '{}'",
+                expected_section
+            ));
         }
     }
 
@@ -106,10 +120,16 @@ fn validate_name(name: &str) -> Result<(), String> {
     if trimmed.chars().count() > 30 {
         return Err("Name is too long (max 30 characters)".into());
     }
-    if !trimmed.chars().all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_') {
+    if !trimmed
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == ' ' || c == '-' || c == '_')
+    {
         return Err("Only letters, numbers, spaces, hyphens and underscores allowed".into());
     }
-    if WINDOWS_RESERVED.iter().any(|r| r.eq_ignore_ascii_case(trimmed)) {
+    if WINDOWS_RESERVED
+        .iter()
+        .any(|r| r.eq_ignore_ascii_case(trimmed))
+    {
         return Err("This name is reserved by Windows".into());
     }
     Ok(())
@@ -119,10 +139,7 @@ fn validate_name(name: &str) -> Result<(), String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn set_active_context(
-    state: State<'_, AppState>,
-    context: String,
-) -> Result<(), String> {
+pub async fn set_active_context(state: State<'_, AppState>, context: String) -> Result<(), String> {
     if context != "global" && context != "project" {
         return Err("Context must be 'global' or 'project'".into());
     }
@@ -208,10 +225,17 @@ pub async fn get_project_dir(state: State<'_, AppState>) -> Result<Option<String
 
 /// In project context, scan project items first, then append global items
 /// that don't already exist in the project (by filename).
-async fn scan_section_merged(state: &State<'_, AppState>, section: &str) -> Result<Vec<AgentInfo>, String> {
+async fn scan_section_merged(
+    state: &State<'_, AppState>,
+    section: &str,
+) -> Result<Vec<AgentInfo>, String> {
     let ctx = state.active_context.lock().await.clone();
     let base = state.active_claude_dir().await?;
-    let scope = if ctx == "project" { "project" } else { "global" };
+    let scope = if ctx == "project" {
+        "project"
+    } else {
+        "global"
+    };
 
     let mut items = scanner::scan_section(&base, section, scope);
 
@@ -273,8 +297,10 @@ pub async fn copy_item_to_project(
     validate_section(&section)?;
     // Validate source is in global dir
     let source = std::path::PathBuf::from(&source_path);
-    let global_canonical = dunce::canonicalize(&state.global_dir).unwrap_or_else(|_| state.global_dir.clone());
-    let source_canonical = dunce::canonicalize(&source).map_err(|e| format!("Invalid path: {}", e))?;
+    let global_canonical =
+        dunce::canonicalize(&state.global_dir).unwrap_or_else(|_| state.global_dir.clone());
+    let source_canonical =
+        dunce::canonicalize(&source).map_err(|e| format!("Invalid path: {}", e))?;
     if !source_canonical.starts_with(&global_canonical) {
         return Err("Source must be a global item".into());
     }
@@ -292,7 +318,10 @@ pub async fn copy_item_to_project(
 
     let target = target_dir.join(filename);
     if target.exists() {
-        return Err(format!("Item already exists in project: {}", filename.to_string_lossy()));
+        return Err(format!(
+            "Item already exists in project: {}",
+            filename.to_string_lossy()
+        ));
     }
 
     std::fs::copy(&source, &target).map_err(|e| format!("Failed to copy: {}", e))?;
@@ -317,7 +346,9 @@ pub async fn toggle_item(
     let base = state.active_claude_dir().await?;
     let (canonical_path, resolved_section) = resolve_toggle_path(&path, Some(&section), &base)?;
     let scope = state.active_scope().await;
-    let locked_paths = state.acquire_toggle_paths(std::slice::from_ref(&canonical_path)).await?;
+    let locked_paths = state
+        .acquire_toggle_paths(std::slice::from_ref(&canonical_path))
+        .await?;
 
     // Suppress watcher events during self-initiated toggle
     state.begin_suppression().await;
@@ -455,9 +486,13 @@ pub async fn create_setup(
     let all_entries = crate::setups::snapshot_current(&agents, &skills, &commands);
     // Only include items that are in the provided setupIds
     let id_set: std::collections::HashSet<&str> = item_ids.iter().map(|s| s.as_str()).collect();
-    let entries: Vec<_> = all_entries.into_iter().filter(|e| id_set.contains(e.id.as_str())).collect();
+    let entries: Vec<_> = all_entries
+        .into_iter()
+        .filter(|e| id_set.contains(e.id.as_str()))
+        .collect();
     if entries.len() != item_ids.len() {
-        let entry_ids: std::collections::HashSet<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+        let entry_ids: std::collections::HashSet<&str> =
+            entries.iter().map(|e| e.id.as_str()).collect();
         let missing_ids: Vec<String> = item_ids
             .into_iter()
             .filter(|id| !entry_ids.contains(id.as_str()))
@@ -519,10 +554,7 @@ pub async fn apply_setup(
     result
 }
 
-async fn apply_setup_inner(
-    state: &State<'_, AppState>,
-    name: &str,
-) -> Result<Vec<String>, String> {
+async fn apply_setup_inner(state: &State<'_, AppState>, name: &str) -> Result<Vec<String>, String> {
     let _lock = state.setups_lock.lock().await;
     let base = state.active_claude_dir().await?;
     let scope = state.active_scope().await;
@@ -535,7 +567,8 @@ async fn apply_setup_inner(
         .ok_or_else(|| format!("Setup '{}' not found", name))?
         .clone();
 
-    let failures = crate::setups::apply_setup_entries(state.inner(), &setup.entries, &base, scope).await?;
+    let failures =
+        crate::setups::apply_setup_entries(state.inner(), &setup.entries, &base, scope).await?;
 
     // Only mark as active if there were no failures (bug #6)
     if failures.is_empty() {
@@ -567,7 +600,10 @@ pub async fn export_setup(state: State<'_, AppState>, name: String) -> Result<St
 
 #[tauri::command]
 #[specta::specta]
-pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<crate::setups::Setup, String> {
+pub async fn import_setup(
+    state: State<'_, AppState>,
+    json: String,
+) -> Result<crate::setups::Setup, String> {
     let _lock = state.setups_lock.lock().await;
     if json.len() > 1_000_000 {
         return Err("Import data too large (max 1MB)".into());
@@ -591,7 +627,9 @@ pub async fn import_setup(state: State<'_, AppState>, json: String) -> Result<cr
 
 // ─── Setup file I/O (backend-owned native dialogs) ─
 
-fn dialog_path_to_pathbuf(path: tauri_plugin_dialog::FilePath) -> Result<std::path::PathBuf, String> {
+fn dialog_path_to_pathbuf(
+    path: tauri_plugin_dialog::FilePath,
+) -> Result<std::path::PathBuf, String> {
     path.into_path()
         .map_err(|e| format!("Invalid dialog path: {}", e))
 }
@@ -660,8 +698,8 @@ pub async fn read_setup_file_with_dialog(app: tauri::AppHandle) -> Result<Option
         return Err("Only .json files are allowed".into());
     }
 
-    let content = std::fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content =
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))?;
     if content.len() > 1_000_000 {
         return Err("File too large (max 1MB)".into());
     }
@@ -697,14 +735,20 @@ pub async fn auto_import_claude_md() -> Result<bool, String> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn list_claude_profiles(state: State<'_, AppState>) -> Result<Vec<claude_md::ClaudeMdProfile>, String> {
+pub async fn list_claude_profiles(
+    state: State<'_, AppState>,
+) -> Result<Vec<claude_md::ClaudeMdProfile>, String> {
     let orch_dir = state.active_orchestrarium_dir().await?;
     claude_md::list_profiles_in(&orch_dir)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn create_claude_profile(state: State<'_, AppState>, name: String, from_current: bool) -> Result<(), String> {
+pub async fn create_claude_profile(
+    state: State<'_, AppState>,
+    name: String,
+    from_current: bool,
+) -> Result<(), String> {
     validate_name(&name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;
     let claude_md = state.active_claude_md_path().await?;
@@ -713,7 +757,10 @@ pub async fn create_claude_profile(state: State<'_, AppState>, name: String, fro
 
 #[tauri::command]
 #[specta::specta]
-pub async fn activate_claude_profile(state: State<'_, AppState>, name: String) -> Result<(), String> {
+pub async fn activate_claude_profile(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
     validate_name(&name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;
     let claude_md = state.active_claude_md_path().await?;
@@ -739,7 +786,10 @@ pub async fn delete_claude_profile(state: State<'_, AppState>, name: String) -> 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn read_claude_profile(state: State<'_, AppState>, name: String) -> Result<String, String> {
+pub async fn read_claude_profile(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<String, String> {
     validate_name(&name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;
     claude_md::read_profile_in(&orch_dir, &name)
@@ -747,7 +797,11 @@ pub async fn read_claude_profile(state: State<'_, AppState>, name: String) -> Re
 
 #[tauri::command]
 #[specta::specta]
-pub async fn save_claude_profile(state: State<'_, AppState>, name: String, content: String) -> Result<(), String> {
+pub async fn save_claude_profile(
+    state: State<'_, AppState>,
+    name: String,
+    content: String,
+) -> Result<(), String> {
     validate_name(&name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;
     let claude_md = state.active_claude_md_path().await?;
@@ -756,7 +810,11 @@ pub async fn save_claude_profile(state: State<'_, AppState>, name: String, conte
 
 #[tauri::command]
 #[specta::specta]
-pub async fn rename_claude_profile(state: State<'_, AppState>, old_name: String, new_name: String) -> Result<(), String> {
+pub async fn rename_claude_profile(
+    state: State<'_, AppState>,
+    old_name: String,
+    new_name: String,
+) -> Result<(), String> {
     validate_name(&old_name)?;
     validate_name(&new_name)?;
     let orch_dir = state.active_orchestrarium_dir().await?;

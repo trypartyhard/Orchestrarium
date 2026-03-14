@@ -114,7 +114,10 @@ mod tests {
         assert_eq!(info.description.as_deref(), Some("A test agent"));
         assert_eq!(info.color.as_deref(), Some("#ff0000"));
         assert_eq!(info.model.as_deref(), Some("opus"));
-        assert_eq!(info.tools, Some(vec!["Read".to_string(), "Write".to_string()]));
+        assert_eq!(
+            info.tools,
+            Some(vec!["Read".to_string(), "Write".to_string()])
+        );
         assert!(info.enabled);
         assert!(!info.invalid_config);
         assert_eq!(info.scope, "global");
@@ -145,7 +148,11 @@ mod tests {
     #[test]
     fn test_malformed_yaml_no_panic() {
         let dir = TempDir::new().unwrap();
-        let path = write_file(&dir, "bad.md", "---\nname: \"unclosed\n  broken: [yaml\n---\n");
+        let path = write_file(
+            &dir,
+            "bad.md",
+            "---\nname: \"unclosed\n  broken: [yaml\n---\n",
+        );
         let info = parse_agent_file(&path, "skills", false, "project");
         // Should not panic, name falls back to filename stem
         assert_eq!(info.name, "bad");
@@ -166,7 +173,11 @@ mod tests {
         let info = parse_agent_file(&path, "agents", true, "global");
         assert_eq!(
             info.tools,
-            Some(vec!["Read".to_string(), "Write".to_string(), "Bash".to_string()])
+            Some(vec![
+                "Read".to_string(),
+                "Write".to_string(),
+                "Bash".to_string()
+            ])
         );
     }
 
@@ -190,10 +201,7 @@ mod tests {
             "---\ndescription: \"Do X: then Y: finally Z\"\n---\n",
         );
         let info = parse_agent_file(&path, "agents", true, "global");
-        assert_eq!(
-            info.description.as_deref(),
-            Some("Do X: then Y: finally Z")
-        );
+        assert_eq!(info.description.as_deref(), Some("Do X: then Y: finally Z"));
     }
 
     #[test]

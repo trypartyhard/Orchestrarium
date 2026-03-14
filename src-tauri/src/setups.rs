@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::io::Write;
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::models::AgentInfo;
@@ -110,7 +110,11 @@ pub async fn apply_setup_entries(
 
     // Scan current state for all sections
     let (agents, skills, commands) = crate::scanner::scan_all(base_dir, scope);
-    let all_items: Vec<&AgentInfo> = agents.iter().chain(skills.iter()).chain(commands.iter()).collect();
+    let all_items: Vec<&AgentInfo> = agents
+        .iter()
+        .chain(skills.iter())
+        .chain(commands.iter())
+        .collect();
     let all_items_by_id: HashMap<&str, &AgentInfo> = all_items
         .iter()
         .map(|item| (item.id.as_str(), *item))
@@ -185,7 +189,10 @@ mod tests {
     #[test]
     fn test_get_setups_path() {
         let path = get_setups_path(Path::new("/home/user/.claude"));
-        assert_eq!(path, PathBuf::from("/home/user/.claude/orchestrarium/setups.json"));
+        assert_eq!(
+            path,
+            PathBuf::from("/home/user/.claude/orchestrarium/setups.json")
+        );
     }
 
     #[test]
@@ -204,8 +211,14 @@ mod tests {
                 name: "test-setup".to_string(),
                 created_at: "2025-01-01T00:00:00Z".to_string(),
                 entries: vec![
-                    SetupEntry { id: "agents/foo".to_string(), enabled: true },
-                    SetupEntry { id: "skills/bar".to_string(), enabled: false },
+                    SetupEntry {
+                        id: "agents/foo".to_string(),
+                        enabled: true,
+                    },
+                    SetupEntry {
+                        id: "skills/bar".to_string(),
+                        enabled: false,
+                    },
                 ],
             }],
             active: Some("test-setup".to_string()),
@@ -331,7 +344,10 @@ mod tests {
         ))
         .unwrap();
 
-        assert_eq!(failures, vec!["Missing item in setup: agents/missing".to_string()]);
+        assert_eq!(
+            failures,
+            vec!["Missing item in setup: agents/missing".to_string()]
+        );
         assert!(agents_dir.join("one.md").exists());
         assert!(!agents_dir.join(".disabled").join("one.md").exists());
     }

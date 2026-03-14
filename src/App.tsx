@@ -13,6 +13,7 @@ import { Toast } from "./components/Toast";
 import { SetupPage } from "./components/SetupPage";
 import { LibraryPage } from "./components/LibraryPage";
 import { ClaudeMdPage } from "./components/ClaudeMdPage";
+import { McpPage } from "./components/McpPage";
 
 function App() {
   const loadSection = useAppStore((s) => s.loadSection);
@@ -98,6 +99,8 @@ function App() {
             <SetupPage />
           ) : activeSection === "library" ? (
             <LibraryPage />
+          ) : activeSection === "mcp" ? (
+            <McpPage />
           ) : activeSection === "claude-md" ? (
             <ClaudeMdPage />
           ) : (

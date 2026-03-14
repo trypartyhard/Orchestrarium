@@ -1,4 +1,5 @@
 use notify_debouncer_mini::{new_debouncer, DebouncedEventKind};
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -28,6 +29,31 @@ fn emit_or_defer_refresh(watcher_state: &WatcherState, app: &AppHandle) {
     }
 }
 
+fn is_relevant_event_kind(kind: DebouncedEventKind) -> bool {
+    matches!(
+        kind,
+        DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous
+    )
+}
+
+fn normalize_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .to_ascii_lowercase()
+}
+
+fn path_matches(actual: &Path, target: &Path) -> bool {
+    normalize_path(actual) == normalize_path(target)
+}
+
+fn update_snapshot_if_changed(current: &mut String, next: String) -> bool {
+    if *current == next {
+        return false;
+    }
+    *current = next;
+    true
+}
+
 /// Start watching ~/.claude/{agents,skills,commands} directories (global watcher).
 /// Also spawns a project watcher thread that can be reconfigured dynamically.
 /// Emits "fs-changed" event to frontend on external changes.
@@ -38,6 +64,11 @@ pub fn start_watcher(
 ) -> Result<(), String> {
     let sections = ["agents", "skills", "commands"];
     let mut dirs_to_watch: Vec<PathBuf> = Vec::new();
+    let home_dir = base_dir
+        .parent()
+        .ok_or("Failed to resolve home directory for watcher")?
+        .to_path_buf();
+    let global_claude_json_path = home_dir.join(".claude.json");
 
     for section in &sections {
         let dir = base_dir.join(section);
@@ -50,13 +81,23 @@ pub fn start_watcher(
     let (init_tx, init_rx) = std::sync::mpsc::channel();
     let ws_global = watcher_state.clone();
     let app_global = app.clone();
+    let home_dir_global = home_dir.clone();
+    let base_dir_global = base_dir.clone();
+    let global_claude_json_path_for_thread = global_claude_json_path.clone();
 
     std::thread::spawn(move || {
         let (tx, rx) = std::sync::mpsc::channel();
+        let mut global_mcp_snapshot = crate::mcp::global_mcp_watch_snapshot(&base_dir_global);
 
         let mut debouncer = match new_debouncer(Duration::from_millis(300), tx) {
-            Ok(d) => { let _ = init_tx.send(Ok(())); d }
-            Err(e) => { let _ = init_tx.send(Err(format!("Failed to create watcher: {}", e))); return; }
+            Ok(d) => {
+                let _ = init_tx.send(Ok(()));
+                d
+            }
+            Err(e) => {
+                let _ = init_tx.send(Err(format!("Failed to create watcher: {}", e)));
+                return;
+            }
         };
 
         for dir in &dirs_to_watch {
@@ -67,16 +108,35 @@ pub fn start_watcher(
                 eprintln!("Warning: failed to watch {}: {}", dir.display(), e);
             }
         }
+        if let Err(e) = debouncer
+            .watcher()
+            .watch(&home_dir_global, notify::RecursiveMode::NonRecursive)
+        {
+            eprintln!(
+                "Warning: failed to watch home dir for {}: {}",
+                global_claude_json_path_for_thread.display(),
+                e
+            );
+        }
 
         loop {
             match rx.recv() {
                 Ok(Ok(events)) => {
                     let has_md = events.iter().any(|e| {
-                        matches!(e.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous)
+                        is_relevant_event_kind(e.kind)
                             && e.path.extension().map_or(false, |ext| ext == "md")
                     });
+                    let touches_global_mcp = events.iter().any(|e| {
+                        is_relevant_event_kind(e.kind)
+                            && path_matches(&e.path, &global_claude_json_path_for_thread)
+                    });
+                    let has_global_mcp_change = touches_global_mcp
+                        && update_snapshot_if_changed(
+                            &mut global_mcp_snapshot,
+                            crate::mcp::global_mcp_watch_snapshot(&base_dir_global),
+                        );
 
-                    if has_md {
+                    if has_md || has_global_mcp_change {
                         emit_or_defer_refresh(&ws_global, &app_global);
                     }
                 }
@@ -109,10 +169,19 @@ pub fn start_watcher(
 
     let ws_project = watcher_state.clone();
     let app_project = app;
+    let global_home_dir = home_dir;
+    let global_dir_for_project = base_dir;
+    let global_claude_json_for_project = global_claude_json_path;
 
     std::thread::spawn(move || {
-        let mut current_debouncer: Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>> = None;
-        let mut current_event_rx: Option<std::sync::mpsc::Receiver<notify_debouncer_mini::DebounceEventResult>> = None;
+        let mut current_debouncer: Option<
+            notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>,
+        > = None;
+        let mut current_event_rx: Option<
+            std::sync::mpsc::Receiver<notify_debouncer_mini::DebounceEventResult>,
+        > = None;
+        let mut current_project_root: Option<PathBuf> = None;
+        let mut current_project_mcp_snapshot: Option<String> = None;
 
         loop {
             // Check for reconfigure commands (non-blocking if we have an active watcher)
@@ -134,6 +203,8 @@ pub fn start_watcher(
                 // Drop old watcher
                 current_debouncer = None;
                 current_event_rx = None;
+                current_project_root = None;
+                current_project_mcp_snapshot = None;
 
                 if let Some(project_root) = new_project {
                     let claude_dir = project_root.join(".claude");
@@ -145,12 +216,45 @@ pub fn start_watcher(
                             for section in &sections {
                                 let dir = claude_dir.join(section);
                                 let _ = std::fs::create_dir_all(&dir);
-                                if let Err(e) = debouncer.watcher().watch(&dir, notify::RecursiveMode::Recursive) {
-                                    eprintln!("Warning: failed to watch project {}: {}", dir.display(), e);
+                                if let Err(e) = debouncer
+                                    .watcher()
+                                    .watch(&dir, notify::RecursiveMode::Recursive)
+                                {
+                                    eprintln!(
+                                        "Warning: failed to watch project {}: {}",
+                                        dir.display(),
+                                        e
+                                    );
                                 }
+                            }
+                            if let Err(e) = debouncer
+                                .watcher()
+                                .watch(&project_root, notify::RecursiveMode::NonRecursive)
+                            {
+                                eprintln!(
+                                    "Warning: failed to watch project root {}: {}",
+                                    project_root.display(),
+                                    e
+                                );
+                            }
+                            if let Err(e) = debouncer
+                                .watcher()
+                                .watch(&global_home_dir, notify::RecursiveMode::NonRecursive)
+                            {
+                                eprintln!(
+                                    "Warning: failed to watch home dir for {}: {}",
+                                    global_claude_json_for_project.display(),
+                                    e
+                                );
                             }
                             current_event_rx = Some(event_rx);
                             current_debouncer = Some(debouncer);
+                            current_project_mcp_snapshot =
+                                Some(crate::mcp::project_mcp_watch_snapshot(
+                                    &global_dir_for_project,
+                                    &project_root,
+                                ));
+                            current_project_root = Some(project_root.clone());
                             let _ = app_project.emit("fs-changed", ());
                         }
                         Err(e) => {
@@ -166,11 +270,36 @@ pub fn start_watcher(
                 match event_rx.try_recv() {
                     Ok(Ok(events)) => {
                         let has_md = events.iter().any(|e| {
-                            matches!(e.kind, DebouncedEventKind::Any | DebouncedEventKind::AnyContinuous)
+                            is_relevant_event_kind(e.kind)
                                 && e.path.extension().map_or(false, |ext| ext == "md")
                         });
+                        let has_project_mcp_change = match (
+                            current_project_root.as_ref(),
+                            current_project_mcp_snapshot.as_mut(),
+                        ) {
+                            (Some(project_root), Some(snapshot)) => {
+                                let project_mcp_json_path = project_root.join(".mcp.json");
+                                let touches_mcp = events.iter().any(|e| {
+                                    is_relevant_event_kind(e.kind)
+                                        && (path_matches(&e.path, &project_mcp_json_path)
+                                            || path_matches(
+                                                &e.path,
+                                                &global_claude_json_for_project,
+                                            ))
+                                });
+                                touches_mcp
+                                    && update_snapshot_if_changed(
+                                        snapshot,
+                                        crate::mcp::project_mcp_watch_snapshot(
+                                            &global_dir_for_project,
+                                            project_root,
+                                        ),
+                                    )
+                            }
+                            _ => false,
+                        };
 
-                        if has_md {
+                        if has_md || has_project_mcp_change {
                             emit_or_defer_refresh(&ws_project, &app_project);
                         }
                     }

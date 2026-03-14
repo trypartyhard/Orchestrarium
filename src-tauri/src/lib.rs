@@ -1,6 +1,7 @@
 mod claude_md;
 mod commands;
 mod groups;
+mod mcp;
 mod models;
 mod parser;
 mod scanner;
@@ -21,6 +22,12 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         commands::get_agents,
         commands::get_skills,
         commands::get_commands,
+        mcp::get_mcp_servers,
+        mcp::get_mcp_server_detail,
+        mcp::toggle_mcp_server,
+        mcp::create_mcp_server,
+        mcp::update_mcp_server,
+        mcp::delete_mcp_server,
         commands::toggle_item,
         commands::toggle_batch,
         commands::frontend_ready,
@@ -96,7 +103,10 @@ pub fn run() {
             // Start file watcher for global dir
             let app_handle = app.handle().clone();
             if let Err(e) = watcher::start_watcher(app_handle, global_dir, watcher_state) {
-                eprintln!("Warning: file watcher failed to start: {}. Auto-refresh disabled.", e);
+                eprintln!(
+                    "Warning: file watcher failed to start: {}. Auto-refresh disabled.",
+                    e
+                );
             }
 
             Ok(())

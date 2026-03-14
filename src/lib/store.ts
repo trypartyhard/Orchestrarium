@@ -1,14 +1,24 @@
 import { create } from "zustand";
 import {
   type AgentInfo,
+  type EditableMcpServer,
+  type CreateMcpServerInput,
+  type McpServerSummary,
   type Setup,
   type ClaudeMdProfile,
   type ContextType,
+  type UpdateMcpServerInput,
   setActiveContext as setActiveContextIPC,
   setProjectDir as setProjectDirIPC,
   getAgents,
   getSkills,
   getCommands,
+  getMcpServers,
+  getMcpServerDetail as getMcpServerDetailIPC,
+  createMcpServer as createMcpServerIPC,
+  updateMcpServer as updateMcpServerIPC,
+  deleteMcpServer as deleteMcpServerIPC,
+  toggleMcpServer as toggleMcpServerIPC,
   toggleItem as toggleItemIPC,
   toggleBatch as toggleBatchIPC,
   getSetups as getSetupsIPC,
@@ -30,7 +40,7 @@ import {
   copyItemToProject as copyItemToProjectIPC,
 } from "../bindings";
 
-export type Section = "setup" | "agents" | "skills" | "commands" | "library" | "claude-md";
+export type Section = "setup" | "agents" | "skills" | "commands" | "mcp" | "library" | "claude-md";
 export type ItemSection = "agents" | "skills" | "commands";
 export type Filter = "all" | "enabled" | "disabled";
 
@@ -43,6 +53,7 @@ export type { ContextType } from "../bindings";
 
 // Guard against double-click: tracks item IDs currently being toggled
 const togglingIds = new Set<string>();
+const togglingMcpIds = new Set<string>();
 
 // Toast auto-hide timer
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -62,6 +73,7 @@ interface AppStore {
   agents: AgentInfo[];
   skills: AgentInfo[];
   commands: AgentInfo[];
+  mcpServers: McpServerSummary[];
   activeSection: Section;
   searchQuery: string;
   filter: Filter;
@@ -84,6 +96,11 @@ interface AppStore {
   silentReload: (section?: Section) => Promise<void>;
   toggleItem: (item: AgentInfo) => Promise<boolean>;
   toggleGroup: (items: AgentInfo[], enable: boolean) => Promise<boolean>;
+  toggleMcpServer: (server: McpServerSummary) => Promise<boolean>;
+  getMcpServerDetail: (id: string) => Promise<EditableMcpServer | null>;
+  createMcpServer: (input: CreateMcpServerInput) => Promise<boolean>;
+  updateMcpServer: (input: UpdateMcpServerInput) => Promise<boolean>;
+  deleteMcpServer: (server: McpServerSummary) => Promise<boolean>;
   setActiveSection: (section: Section) => void;
   setSearchQuery: (query: string) => void;
   setFilter: (filter: Filter) => void;
@@ -144,6 +161,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   agents: [],
   skills: [],
   commands: [],
+  mcpServers: [],
   activeSection: "setup",
   searchQuery: "",
   filter: "all",
@@ -211,6 +229,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       } else if (section === "library") {
         await get().loadSetups();
         set({ loading: false });
+      } else if (section === "mcp") {
+        const mcpServers = await getMcpServers();
+        set({ mcpServers, loading: false });
       } else if (section === "claude-md") {
         await get().loadClaudeProfiles();
         set({ loading: false });
@@ -236,6 +257,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set({ agents, skills, commands });
       } else if (target === "library") {
         await get().loadSetups();
+      } else if (target === "mcp") {
+        const mcpServers = await getMcpServers();
+        set({ mcpServers });
       } else if (target === "claude-md") {
         await get().loadClaudeProfiles();
       } else {
@@ -323,6 +347,76 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return false;
     } finally {
       for (const i of toToggle) togglingIds.delete(i.id);
+    }
+  },
+
+  toggleMcpServer: async (server) => {
+    if (!server.canToggle || togglingMcpIds.has(server.id)) return false;
+    togglingMcpIds.add(server.id);
+
+    const newEnabled = !server.enabled;
+    set((state) => ({
+      mcpServers: state.mcpServers.map((item) =>
+        item.id === server.id ? { ...item, enabled: newEnabled } : item,
+      ),
+    }));
+
+    try {
+      await toggleMcpServerIPC(server.id, newEnabled);
+      await get().silentReload("mcp");
+      return true;
+    } catch {
+      await get().silentReload("mcp");
+      get().showToast(`Failed to toggle ${server.name}`, "error");
+      return false;
+    } finally {
+      togglingMcpIds.delete(server.id);
+    }
+  },
+
+  getMcpServerDetail: async (id) => {
+    try {
+      return await getMcpServerDetailIPC(id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to load MCP server", "error");
+      return null;
+    }
+  },
+
+  createMcpServer: async (input) => {
+    try {
+      await createMcpServerIPC(input);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to create MCP server", "error");
+      return false;
+    }
+  },
+
+  updateMcpServer: async (input) => {
+    try {
+      await updateMcpServerIPC(input);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to update MCP server", "error");
+      return false;
+    }
+  },
+
+  deleteMcpServer: async (server) => {
+    try {
+      await deleteMcpServerIPC(server.id);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || `Failed to delete ${server.name}`, "error");
+      return false;
     }
   },
 

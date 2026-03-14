@@ -5,12 +5,18 @@ export function StatusBar() {
   const agents = useAppStore((s) => s.agents);
   const skills = useAppStore((s) => s.skills);
   const commands = useAppStore((s) => s.commands);
+  const mcpServers = useAppStore((s) => s.mcpServers);
   const setups = useAppStore((s) => s.setups);
   const claudeProfiles = useAppStore((s) => s.claudeProfiles);
   const activeContext = useAppStore((s) => s.activeContext);
   const projectDir = useAppStore((s) => s.projectDir);
 
-  const isItemSection = activeSection === "setup" || activeSection === "agents" || activeSection === "skills" || activeSection === "commands";
+  const isItemSection =
+    activeSection === "setup"
+    || activeSection === "agents"
+    || activeSection === "skills"
+    || activeSection === "commands"
+    || activeSection === "mcp";
 
   const items =
     activeSection === "setup"
@@ -19,7 +25,9 @@ export function StatusBar() {
         ? agents
         : activeSection === "skills"
           ? skills
-          : commands;
+          : activeSection === "commands"
+            ? commands
+            : mcpServers;
 
   const enabledCount = isItemSection ? items.filter((i) => i.enabled).length : 0;
   const disabledCount = isItemSection ? items.filter((i) => !i.enabled).length : 0;
@@ -37,6 +45,10 @@ export function StatusBar() {
         ? activeContext === "project" && projectDir
           ? `${basePath}/CLAUDE.md`
           : "~/.claude/CLAUDE.md"
+        : activeSection === "mcp"
+          ? activeContext === "project" && projectDir
+            ? `${basePath}/.mcp.json + ~/.claude.json`
+            : "~/.claude.json"
         : activeSection === "setup"
           ? activeContext === "project" && projectDir
             ? `${basePath}/.claude/`

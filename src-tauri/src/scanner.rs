@@ -69,7 +69,11 @@ fn scan_dir(dir: &Path, section: &str, enabled: bool, scope: &str, agents: &mut 
                 }
             }
             Err(err) => {
-                eprintln!("Warning: failed to read entry in {}: {}", dir.display(), err);
+                eprintln!(
+                    "Warning: failed to read entry in {}: {}",
+                    dir.display(),
+                    err
+                );
             }
         }
     }
@@ -125,7 +129,11 @@ mod tests {
     #[test]
     fn test_scan_finds_disabled_files() {
         let tmp = TempDir::new().unwrap();
-        setup_section(tmp.path(), "agents", &[("active.md", "---\nname: Active\n---\n")]);
+        setup_section(
+            tmp.path(),
+            "agents",
+            &[("active.md", "---\nname: Active\n---\n")],
+        );
         setup_disabled(
             tmp.path(),
             "agents",

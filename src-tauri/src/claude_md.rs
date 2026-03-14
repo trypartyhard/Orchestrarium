@@ -21,7 +21,10 @@ fn active_profile_path_for(orchestrarium_dir: &Path) -> PathBuf {
 fn read_active_name_for(orchestrarium_dir: &Path) -> Option<String> {
     let path = active_profile_path_for(orchestrarium_dir);
     if path.exists() {
-        std::fs::read_to_string(&path).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+        std::fs::read_to_string(&path)
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
     } else {
         None
     }
@@ -35,7 +38,8 @@ fn write_active_name_for(orchestrarium_dir: &Path, name: &str) -> Result<(), Str
 fn clear_active_name_for(orchestrarium_dir: &Path) -> Result<(), String> {
     let path = active_profile_path_for(orchestrarium_dir);
     if path.exists() {
-        std::fs::remove_file(&path).map_err(|e| format!("Failed to clear active profile: {}", e))?;
+        std::fs::remove_file(&path)
+            .map_err(|e| format!("Failed to clear active profile: {}", e))?;
     }
     Ok(())
 }
@@ -167,7 +171,8 @@ pub fn delete_profile_in(
     // If this was the active profile, clear CLAUDE.md and active marker
     if read_active_name_for(orchestrarium_dir).as_deref() == Some(name) {
         if claude_md_path.exists() {
-            std::fs::write(claude_md_path, "").map_err(|e| format!("Clear CLAUDE.md error: {}", e))?;
+            std::fs::write(claude_md_path, "")
+                .map_err(|e| format!("Clear CLAUDE.md error: {}", e))?;
         }
         clear_active_name_for(orchestrarium_dir)?;
     }
@@ -201,15 +206,21 @@ pub fn save_profile_in(
     // If this is the active profile, also update CLAUDE.md
     if read_active_name_for(orchestrarium_dir).as_deref() == Some(name) {
         let claude_tmp = claude_md_path.with_extension("md.tmp");
-        std::fs::write(&claude_tmp, content).map_err(|e| format!("Write CLAUDE.md error: {}", e))?;
-        std::fs::rename(&claude_tmp, claude_md_path).map_err(|e| format!("Rename CLAUDE.md error: {}", e))?;
+        std::fs::write(&claude_tmp, content)
+            .map_err(|e| format!("Write CLAUDE.md error: {}", e))?;
+        std::fs::rename(&claude_tmp, claude_md_path)
+            .map_err(|e| format!("Rename CLAUDE.md error: {}", e))?;
     }
 
     Ok(())
 }
 
 /// Rename a profile.
-pub fn rename_profile_in(orchestrarium_dir: &Path, old_name: &str, new_name: &str) -> Result<(), String> {
+pub fn rename_profile_in(
+    orchestrarium_dir: &Path,
+    old_name: &str,
+    new_name: &str,
+) -> Result<(), String> {
     let dir = profiles_dir_for(orchestrarium_dir);
     let old_path = dir.join(format!("{}.md", old_name));
     let new_path = dir.join(format!("{}.md", new_name));

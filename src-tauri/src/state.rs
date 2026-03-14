@@ -13,10 +13,7 @@ pub struct WatcherSuppressionState {
 }
 
 /// Helper: decrement suppression count and emit a deferred refresh if needed.
-pub async fn unsuppress_and_flush(
-    watcher_state: &WatcherState,
-    app_handle: &tauri::AppHandle,
-) {
+pub async fn unsuppress_and_flush(watcher_state: &WatcherState, app_handle: &tauri::AppHandle) {
     let should_emit = {
         let mut suppression = watcher_state.suppression.lock().await;
         if suppression.count > 0 {
@@ -45,6 +42,8 @@ pub struct AppState {
     pub watcher_state: Arc<WatcherState>,
     /// Serializes read-modify-write operations on setups.json
     pub setups_lock: Mutex<()>,
+    /// Serializes read-modify-write operations on MCP-related JSON files
+    pub mcp_lock: Mutex<()>,
     /// Tracks canonical paths of files currently being toggled (TOCTOU guard)
     pub toggling_paths: Mutex<HashSet<PathBuf>>,
 }
@@ -66,6 +65,7 @@ impl AppState {
                 project_watcher_tx: Mutex::new(None),
             }),
             setups_lock: Mutex::new(()),
+            mcp_lock: Mutex::new(()),
             toggling_paths: Mutex::new(HashSet::new()),
         }
     }
@@ -75,16 +75,13 @@ impl AppState {
         suppression.count += 1;
     }
 
-    pub async fn acquire_toggle_paths(
-        &self,
-        paths: &[PathBuf],
-    ) -> Result<Vec<PathBuf>, String> {
+    pub async fn acquire_toggle_paths(&self, paths: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
         let mut unique_paths = Vec::new();
         let mut seen = HashSet::new();
 
         for path in paths {
-            let canonical = dunce::canonicalize(path)
-                .map_err(|e| format!("Invalid path: {}", e))?;
+            let canonical =
+                dunce::canonicalize(path).map_err(|e| format!("Invalid path: {}", e))?;
             if seen.insert(canonical.clone()) {
                 unique_paths.push(canonical);
             }

@@ -16,6 +16,7 @@ describe("Sidebar context switcher", () => {
     render(<Sidebar />);
     expect(screen.getByTitle("Global context (~/.claude)")).toBeInTheDocument();
     expect(screen.getByTitle("Open project")).toBeInTheDocument();
+    expect(screen.getByTitle("MCP Servers")).toBeInTheDocument();
   });
 
   it("shows project name when project is selected", () => {
