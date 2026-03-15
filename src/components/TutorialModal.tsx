@@ -18,6 +18,7 @@ import {
   Download,
   Upload,
   FileText,
+  Plug,
   Settings,
   XCircle,
   Pencil,
@@ -96,16 +97,15 @@ const pages: Page[] = [
           <span className="font-semibold text-[#e8e8ec]">Orchestrarium</span>{" "}
           is a visual manager for{" "}
           <span className="font-semibold text-[#e8e8ec]">Claude Code</span>{" "}
-          agents, skills, and commands. It lets you browse, organize, and
-          toggle them on or off without editing files manually.
+          agents, skills, commands, and MCP configurations. It lets you
+          browse, organize, and switch them without editing files manually.
         </p>
         <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
           <p className="text-[13px] text-[#4fc3f7]">
             <span className="font-semibold">How it works:</span> Claude Code
-            stores agents, skills, and commands as{" "}
-            <Kbd>.md</Kbd> files. Disabling an item moves it
-            into a <Kbd>.disabled</Kbd> subfolder. Enabling it moves it back.
-            Orchestrarium does this for you with a single click.
+            stores agents, skills, and commands as <Kbd>.md</Kbd> files, while
+            MCP servers live in Claude config files. Orchestrarium updates both
+            safely for you with a single click.
           </p>
         </div>
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
@@ -117,7 +117,7 @@ const pages: Page[] = [
           Switch between them using the context switcher at the top of the sidebar.
         </p>
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
-          The app has <span className="font-semibold text-[#e8e8ec]">six sections</span>,
+          The app has <span className="font-semibold text-[#e8e8ec]">seven sections</span>,
           accessible from the sidebar:
         </p>
         <div className="grid grid-cols-2 gap-2">
@@ -127,6 +127,7 @@ const pages: Page[] = [
           <IconBox icon={Terminal} color="#ffa726" label="Commands" />
           <IconBox icon={Library} color="#a78bfa" label="Library" />
           <IconBox icon={FileText} color="#a78bfa" label="CLAUDE.md" />
+          <IconBox icon={Plug} color="#4fc3f7" label="MCP Servers" />
         </div>
         <p className="text-[12px] text-[#56565f]">
           Let's go through each one.
@@ -245,7 +246,7 @@ const pages: Page[] = [
     ),
   },
   {
-    title: "Setup — Your Control Center",
+    title: "Setup - Your Active Workspace",
     content: (
       <div className="flex flex-col gap-5">
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
@@ -254,25 +255,36 @@ const pages: Page[] = [
             <LayoutDashboard className="mb-0.5 inline h-3.5 w-3.5 text-[#4fc3f7]" />{" "}
             Setup
           </span>{" "}
-          page is the heart of Orchestrarium. It shows all items you've added
-          and lets you control them.
+          page is your active workspace for agents, skills, and commands. It
+          shows the items you've added and lets you enable, disable, and
+          organize them in one place.
         </p>
         <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
           <p className="text-[13px] text-[#4fc3f7]">
             <span className="font-semibold">First launch:</span> Orchestrarium
-            automatically detects all agents, skills, and commands that are
-            already active on your system and adds them to Setup. You don't
-            need to configure anything — your current setup is ready to go.
+            automatically detects the agents, skills, and commands that are
+            already active on your system and adds them to Setup. You start
+            from your current working configuration instead of an empty list.
           </p>
         </div>
         <div className="flex flex-col gap-3">
-        <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
-          <p className="text-[13px] text-[#66bb6a]">
-            <span className="font-semibold">Tip:</span> On first launch, consider
-            saving your current setup to the Library — so you can always
-            restore it later.
-          </p>
-        </div>
+          <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
+            <p className="text-[13px] text-[#b0b0b8]">
+              <span className="font-semibold text-[#c0c0c8]">Scope note:</span>{" "}
+              Setup manages the <Kbd>.md</Kbd>-based layer only.{" "}
+              <span className="font-semibold text-[#e8e8ec]">CLAUDE.md</span>{" "}
+              profiles and{" "}
+              <span className="font-semibold text-[#e8e8ec]">MCP Servers</span>{" "}
+              have their own sections.
+            </p>
+          </div>
+          <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
+            <p className="text-[13px] text-[#66bb6a]">
+              <span className="font-semibold">Tip:</span> On first launch,
+              consider saving your current setup to the Library so you always
+              have a clean restore point.
+            </p>
+          </div>
           <StepRow
             step={1}
             text={
@@ -280,9 +292,9 @@ const pages: Page[] = [
                 <span className="font-semibold text-[#e8e8ec]">
                   Summary cards
                 </span>{" "}
-                at the top show how many items are active in your Setup.
-                Click a card to filter the list by category. Click again to
-                show all.
+                at the top show counts for the items in your current Setup.
+                Click a card to filter the list by category, then click again
+                to clear the filter.
               </>
             }
           />
@@ -294,8 +306,9 @@ const pages: Page[] = [
                   Toggle switches{" "}
                   <ToggleRight className="mb-0.5 inline h-4 w-4 text-[#4fc3f7]" />
                 </span>{" "}
-                enable or disable items. This moves the <Kbd>.md</Kbd> file on
-                disk in real time — Claude Code picks up changes instantly.
+                enable or disable individual items. Orchestrarium moves the
+                corresponding <Kbd>.md</Kbd> file on disk immediately, and
+                Claude Code picks up the change automatically.
               </>
             }
           />
@@ -306,7 +319,7 @@ const pages: Page[] = [
                 <span className="font-semibold text-[#e8e8ec]">
                   Group toggles
                 </span>{" "}
-                let you enable/disable all items in a group at once.
+                let you enable or disable all items in a group at once.
               </>
             }
           />
@@ -316,8 +329,8 @@ const pages: Page[] = [
               <>
                 The{" "}
                 <Trash2 className="mb-0.5 inline h-3.5 w-3.5 text-[#56565f]" />{" "}
-                button removes an item from your Setup (and disables it if it
-                was on).
+                button removes an item from Setup. If it was enabled, it is
+                disabled as part of that removal.
               </>
             }
           />
@@ -328,8 +341,8 @@ const pages: Page[] = [
                 <span className="inline-flex items-center gap-1 font-semibold text-red-400">
                   <XCircle className="inline h-3 w-3" /> Clear Setup
                 </span>{" "}
-                removes all items at once and disables everything. Your saved
-                setups in Library are not affected.
+                removes all items from Setup and disables them. Saved entries
+                in the Library are not affected.
               </>
             }
           />
@@ -340,8 +353,9 @@ const pages: Page[] = [
                 <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
                   <RefreshCw className="inline h-3 w-3" /> Update
                 </span>{" "}
-                — appears when you modify an active setup (toggle, add, or remove
-                items). Click it to save changes back to the Library.
+                appears when you change an active saved setup by toggling,
+                adding, or removing items. Click it to write those changes back
+                to the Library entry.
               </>
             }
           />
@@ -350,8 +364,9 @@ const pages: Page[] = [
           <p className="text-[13px] text-[#b0b0b8]">
             <span className="font-semibold text-[#c0c0c8]">Active setup:</span>{" "}
             When you activate a setup from the Library, its name appears under
-            the header. Any changes you make are tracked — use the Update button
-            to save them.
+            the header. Any later changes are tracked, so you can use{" "}
+            <span className="font-semibold text-[#e8e8ec]">Update</span> to
+            save the edited version back to the same Library item.
           </p>
         </div>
         <div className="rounded-lg border border-[#ffa726]/20 bg-[#ffa726]/5 px-4 py-3">
@@ -359,7 +374,7 @@ const pages: Page[] = [
             <span className="font-semibold">Group Warning:</span> When you
             disable an item that belongs to a named group, Orchestrarium will
             warn you that it may affect other items in that group. You can
-            skip these warnings in{" "}
+            turn these warnings off in{" "}
             <Settings className="mb-0.5 inline h-3 w-3" /> Settings.
           </p>
         </div>
@@ -524,6 +539,95 @@ const pages: Page[] = [
     ),
   },
   {
+    title: "MCP Servers",
+    content: (
+      <div className="flex flex-col gap-5">
+        <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
+          The <span className="font-semibold text-[#e8e8ec]">MCP Servers</span>{" "}
+          section manages Model Context Protocol tools for Claude Code.
+          Orchestrarium uses a profile-first flow, so you can switch between
+          saved MCP bundles without hand-editing JSON.
+        </p>
+        <div className="rounded-lg border border-[#4fc3f7]/20 bg-[#4fc3f7]/5 px-4 py-3">
+          <p className="text-[13px] text-[#4fc3f7]">
+            <span className="font-semibold">Profiles is the default tab:</span>{" "}
+            a profile is a saved bundle of one or more MCP servers, such as
+            Brave Search, GitHub, and filesystem tools in one stack.
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          <StepRow
+            step={1}
+            text={(
+              <>
+                Click{" "}
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <Plus className="inline h-3 w-3" /> New Profile
+                </span>{" "}
+                to create a bundle. Add more than one MCP by placing multiple
+                entries inside the profile's <Kbd>servers</Kbd> object.
+              </>
+            )}
+          />
+          <StepRow
+            step={2}
+            text={(
+              <>
+                Use <span className="font-semibold text-[#e8e8ec]">Validate</span>{" "}
+                to run a dry run before changing anything. It checks JSON shape,
+                name collisions, and managed-state drift.
+              </>
+            )}
+          />
+          <StepRow
+            step={3}
+            text={(
+              <>
+                Click{" "}
+                <span className="inline-flex items-center gap-1 font-semibold text-[#4fc3f7]">
+                  <Play className="inline h-3 w-3" /> Activate
+                </span>{" "}
+                to write the active bundle into <Kbd>~/.claude.json</Kbd> in
+                global context or <Kbd>.mcp.json</Kbd> in project context.
+                Only one MCP profile is active per context.
+              </>
+            )}
+          />
+          <StepRow
+            step={4}
+            text={(
+              <>
+                <span className="inline-flex items-center gap-1 font-semibold text-[#8a8a96]">
+                  <Pause className="inline h-3 w-3" /> Deactivate
+                </span>{" "}
+                removes only servers owned by that profile. Manual live servers
+                stay untouched.
+              </>
+            )}
+          />
+          <StepRow
+            step={5}
+            text={(
+              <>
+                Open <span className="font-semibold text-[#e8e8ec]">Live Servers</span>{" "}
+                to inspect the actual current config. In project context, this
+                is also the advanced view for adding or editing local{" "}
+                <Kbd>.mcp.json</Kbd> entries directly.
+              </>
+            )}
+          />
+        </div>
+        <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
+          <p className="text-[13px] text-[#66bb6a]">
+            <span className="font-semibold">Important:</span> Claude Code reads
+            the live MCP config, not the saved profile itself. Profiles are
+            presets; Live Servers shows what is actually active right now.
+          </p>
+        </div>
+      </div>
+    ),
+  },
+  {
     title: "Project Context",
     content: (
       <div className="flex flex-col gap-5">
@@ -606,23 +710,27 @@ const pages: Page[] = [
     ),
   },
   {
-    title: "Typical Workflow",
+    title: "Typical Workflows",
     content: (
       <div className="flex flex-col gap-5">
         <p className="text-[13px] leading-relaxed text-[#b0b0b8]">
-          Here's how most users work with Orchestrarium:
+          Most users follow a few simple workflows in Orchestrarium: building a
+          working Setup, saving reusable combinations in the Library, and
+          switching CLAUDE.md or MCP configurations when a task needs different
+          behavior or tools.
         </p>
         <div className="flex flex-col gap-3">
           <StepRow
             step={1}
             text={
               <>
-                Open the{" "}
+                Start in{" "}
                 <span className="font-semibold text-[#4fc3f7]">Agents</span>,{" "}
                 <span className="font-semibold text-[#66bb6a]">Skills</span>,
-                or{" "}
+                and{" "}
                 <span className="font-semibold text-[#ffa726]">Commands</span>{" "}
-                tab to browse what's available.
+                to browse what is available and add the items you want to your
+                Setup.
               </>
             }
           />
@@ -630,11 +738,10 @@ const pages: Page[] = [
             step={2}
             text={
               <>
-                Click{" "}
-                <span className="font-semibold text-[#4fc3f7]">
-                  Add to Setup
-                </span>{" "}
-                on items you want to use.
+                Move to the{" "}
+                <span className="font-semibold text-[#e8e8ec]">Setup</span>{" "}
+                tab to enable, disable, and organize your current working set
+                of md-based items.
               </>
             }
           />
@@ -642,9 +749,13 @@ const pages: Page[] = [
             step={3}
             text={
               <>
-                Switch to the{" "}
-                <span className="font-semibold text-[#e8e8ec]">Setup</span>{" "}
-                tab. Use the toggles to enable or disable items as needed.
+                When the combination feels right, use{" "}
+                <span className="font-semibold text-[#e8e8ec]">
+                  Save Setup
+                </span>{" "}
+                to keep it in the{" "}
+                <span className="font-semibold text-[#a78bfa]">Library</span>{" "}
+                for later reuse.
               </>
             }
           />
@@ -652,8 +763,10 @@ const pages: Page[] = [
             step={4}
             text={
               <>
-                Claude Code detects changes automatically — no restart
-                required.
+                Use the{" "}
+                <span className="font-semibold text-[#a78bfa]">Library</span>{" "}
+                to switch between saved setups quickly when you move between
+                different tasks or projects.
               </>
             }
           />
@@ -661,12 +774,10 @@ const pages: Page[] = [
             step={5}
             text={
               <>
-                Optionally{" "}
-                <span className="font-semibold text-[#e8e8ec]">
-                  Save Setup
-                </span>{" "}
-                to keep your configuration in the{" "}
-                <span className="font-semibold text-[#a78bfa]">Library</span>.
+                Open{" "}
+                <span className="font-semibold text-[#e8e8ec]">CLAUDE.md</span>{" "}
+                when you want Claude Code to follow a different instruction
+                style, role, or project-specific rules.
               </>
             }
           />
@@ -674,25 +785,32 @@ const pages: Page[] = [
             step={6}
             text={
               <>
-                Use the{" "}
-                <span className="font-semibold text-[#a78bfa]">Library</span>{" "}
-                to switch between saved setups with one click.
+                Open{" "}
+                <span className="font-semibold text-[#e8e8ec]">MCP Servers</span>{" "}
+                when you need external tools such as search, docs, GitHub, or
+                filesystem access. Validate the profile first, then activate the
+                bundle in the current context.
               </>
             }
           />
         </div>
         <div className="rounded-lg border border-[#66bb6a]/20 bg-[#66bb6a]/5 px-4 py-3">
           <p className="text-[13px] text-[#66bb6a]">
-            <span className="font-semibold">Pro tip:</span> Orchestrarium
-            watches the filesystem in real time. If you add or remove{" "}
-            <Kbd>.md</Kbd> files manually, the UI updates automatically.
+            <span className="font-semibold">Pro tip:</span> You do not need to
+            reconfigure everything every time. Keep reusable setups in the{" "}
+            <span className="font-semibold text-[#e8e8ec]">Library</span>,
+            reusable instruction presets in{" "}
+            <span className="font-semibold text-[#e8e8ec]">CLAUDE.md</span>,
+            and reusable tool bundles in{" "}
+            <span className="font-semibold text-[#e8e8ec]">MCP Servers</span>.
           </p>
         </div>
         <div className="rounded-lg border border-[#3a3a42] bg-[#1e1e23] px-4 py-3">
           <p className="text-[13px] text-[#b0b0b8]">
             <Settings className="mb-0.5 inline h-3 w-3 text-[#56565f]" />{" "}
             <span className="font-semibold text-[#c0c0c8]">Settings</span>{" "}
-            — skip group notifications for experienced users.
+            also lets experienced users hide group notifications for a less
+            chatty workflow.
           </p>
         </div>
       </div>

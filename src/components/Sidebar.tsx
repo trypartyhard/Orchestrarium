@@ -10,9 +10,9 @@ const sections: { key: Section; label: string; icon: typeof Bot }[] = [
   { key: "agents", label: "Agents", icon: Bot },
   { key: "skills", label: "Skills", icon: Sparkles },
   { key: "commands", label: "Commands", icon: Terminal },
-  { key: "mcp", label: "MCP Servers", icon: Plug },
   { key: "library", label: "Library", icon: Library },
   { key: "claude-md", label: "CLAUDE.md", icon: FileText },
+  { key: "mcp", label: "MCP Servers", icon: Plug },
 ];
 
 export function Sidebar() {

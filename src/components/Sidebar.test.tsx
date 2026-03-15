@@ -3,6 +3,16 @@ import { render, screen } from "@testing-library/react";
 import { Sidebar } from "./Sidebar";
 import { useAppStore } from "../lib/store";
 
+const SECTION_LABELS = [
+  "Setup",
+  "Agents",
+  "Skills",
+  "Commands",
+  "Library",
+  "CLAUDE.md",
+  "MCP Servers",
+] as const;
+
 describe("Sidebar context switcher", () => {
   beforeEach(() => {
     useAppStore.setState({
@@ -17,6 +27,17 @@ describe("Sidebar context switcher", () => {
     expect(screen.getByTitle("Global context (~/.claude)")).toBeInTheDocument();
     expect(screen.getByTitle("Open project")).toBeInTheDocument();
     expect(screen.getByTitle("MCP Servers")).toBeInTheDocument();
+  });
+
+  it("renders MCP below CLAUDE.md in the sidebar order", () => {
+    render(<Sidebar />);
+
+    const labels = screen
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.getAttribute("title"))
+      .filter((label): label is string => SECTION_LABELS.includes(label as typeof SECTION_LABELS[number]));
+
+    expect(labels).toEqual(SECTION_LABELS);
   });
 
   it("shows project name when project is selected", () => {
