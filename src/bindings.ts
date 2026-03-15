@@ -144,6 +144,77 @@ export async function deleteMcpServer(id: string): Promise<void> {
   return await invoke<void>("delete_mcp_server", { id });
 }
 
+export type McpProfileHealth = "ok" | "drift" | "conflict" | "broken";
+export type McpProfileIssueKind = "drift" | "conflict" | "broken";
+
+export type McpProfileIssue = {
+  kind: McpProfileIssueKind;
+  message: string;
+  blocking: boolean;
+};
+
+export type McpProfileSummary = {
+  name: string;
+  active: boolean;
+  serverCount: number;
+  healthStatus: McpProfileHealth;
+  serverTypes: McpServerType[];
+};
+
+export type McpProfileDetail = {
+  name: string;
+  active: boolean;
+  serverCount: number;
+  healthStatus: McpProfileHealth;
+  serverTypes: McpServerType[];
+  content: string;
+};
+
+export type McpProfileActivationPreview = {
+  profileName: string;
+  serverCount: number;
+  canActivate: boolean;
+  collisions: string[];
+  issues: McpProfileIssue[];
+};
+
+export async function listMcpProfiles(): Promise<McpProfileSummary[]> {
+  return await invoke<McpProfileSummary[]>("list_mcp_profiles");
+}
+
+export async function readMcpProfile(name: string): Promise<McpProfileDetail> {
+  return await invoke<McpProfileDetail>("read_mcp_profile", { name });
+}
+
+export async function createMcpProfile(name: string): Promise<McpProfileDetail> {
+  return await invoke<McpProfileDetail>("create_mcp_profile", { name });
+}
+
+export async function saveMcpProfile(
+  name: string,
+  content: string,
+): Promise<McpProfileDetail> {
+  return await invoke<McpProfileDetail>("save_mcp_profile", { name, content });
+}
+
+export async function deleteMcpProfile(name: string): Promise<void> {
+  return await invoke<void>("delete_mcp_profile", { name });
+}
+
+export async function previewActivateMcpProfile(
+  name: string,
+): Promise<McpProfileActivationPreview> {
+  return await invoke<McpProfileActivationPreview>("preview_activate_mcp_profile", { name });
+}
+
+export async function activateMcpProfile(name: string): Promise<void> {
+  return await invoke<void>("activate_mcp_profile", { name });
+}
+
+export async function deactivateMcpProfile(): Promise<void> {
+  return await invoke<void>("deactivate_mcp_profile");
+}
+
 export async function toggleItem(
   path: string,
   enable: boolean,

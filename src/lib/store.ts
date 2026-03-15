@@ -3,6 +3,8 @@ import {
   type AgentInfo,
   type EditableMcpServer,
   type CreateMcpServerInput,
+  type McpProfileActivationPreview,
+  type McpProfileSummary,
   type McpServerSummary,
   type Setup,
   type ClaudeMdProfile,
@@ -19,6 +21,14 @@ import {
   updateMcpServer as updateMcpServerIPC,
   deleteMcpServer as deleteMcpServerIPC,
   toggleMcpServer as toggleMcpServerIPC,
+  listMcpProfiles as listMcpProfilesIPC,
+  createMcpProfile as createMcpProfileIPC,
+  readMcpProfile as readMcpProfileIPC,
+  saveMcpProfile as saveMcpProfileIPC,
+  deleteMcpProfile as deleteMcpProfileIPC,
+  previewActivateMcpProfile as previewActivateMcpProfileIPC,
+  activateMcpProfile as activateMcpProfileIPC,
+  deactivateMcpProfile as deactivateMcpProfileIPC,
   toggleItem as toggleItemIPC,
   toggleBatch as toggleBatchIPC,
   getSetups as getSetupsIPC,
@@ -74,6 +84,7 @@ interface AppStore {
   skills: AgentInfo[];
   commands: AgentInfo[];
   mcpServers: McpServerSummary[];
+  mcpProfiles: McpProfileSummary[];
   activeSection: Section;
   searchQuery: string;
   filter: Filter;
@@ -101,6 +112,14 @@ interface AppStore {
   createMcpServer: (input: CreateMcpServerInput) => Promise<boolean>;
   updateMcpServer: (input: UpdateMcpServerInput) => Promise<boolean>;
   deleteMcpServer: (server: McpServerSummary) => Promise<boolean>;
+  loadMcpProfiles: () => Promise<void>;
+  createMcpProfile: (name: string) => Promise<boolean>;
+  activateMcpProfile: (name: string) => Promise<boolean>;
+  deactivateMcpProfile: () => Promise<boolean>;
+  deleteMcpProfile: (name: string) => Promise<boolean>;
+  readMcpProfile: (name: string) => Promise<string>;
+  saveMcpProfile: (name: string, content: string) => Promise<boolean>;
+  previewActivateMcpProfile: (name: string) => Promise<McpProfileActivationPreview | null>;
   setActiveSection: (section: Section) => void;
   setSearchQuery: (query: string) => void;
   setFilter: (filter: Filter) => void;
@@ -157,11 +176,21 @@ function persistSetupIds(ids: Set<string>, ctx?: ContextType, proj?: string | nu
   localStorage.setItem(setupIdsKey(ctx, proj), JSON.stringify([...ids]));
 }
 
+async function loadMcpState(ctx: ContextType, projectDir: string | null) {
+  const mcpServers = await getMcpServers();
+  const canLoadProfiles = ctx === "global" || (ctx === "project" && !!projectDir);
+  const mcpProfiles = canLoadProfiles
+    ? await listMcpProfilesIPC()
+    : [];
+  return { mcpServers, mcpProfiles };
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   agents: [],
   skills: [],
   commands: [],
   mcpServers: [],
+  mcpProfiles: [],
   activeSection: "setup",
   searchQuery: "",
   filter: "all",
@@ -230,8 +259,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
         await get().loadSetups();
         set({ loading: false });
       } else if (section === "mcp") {
-        const mcpServers = await getMcpServers();
-        set({ mcpServers, loading: false });
+        const { mcpServers, mcpProfiles } = await loadMcpState(
+          get().activeContext,
+          get().projectDir,
+        );
+        set({ mcpServers, mcpProfiles, loading: false });
       } else if (section === "claude-md") {
         await get().loadClaudeProfiles();
         set({ loading: false });
@@ -258,8 +290,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
       } else if (target === "library") {
         await get().loadSetups();
       } else if (target === "mcp") {
-        const mcpServers = await getMcpServers();
-        set({ mcpServers });
+        const { mcpServers, mcpProfiles } = await loadMcpState(
+          get().activeContext,
+          get().projectDir,
+        );
+        set({ mcpServers, mcpProfiles });
       } else if (target === "claude-md") {
         await get().loadClaudeProfiles();
       } else {
@@ -417,6 +452,104 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const message = error instanceof Error ? error.message : String(error);
       get().showToast(message || `Failed to delete ${server.name}`, "error");
       return false;
+    }
+  },
+
+  loadMcpProfiles: async () => {
+    const activeContext = get().activeContext;
+    const canLoadProfiles =
+      activeContext === "global" || (activeContext === "project" && !!get().projectDir);
+    if (!canLoadProfiles) {
+      set({ mcpProfiles: [] });
+      return;
+    }
+
+    try {
+      const mcpProfiles = await listMcpProfilesIPC();
+      set({ mcpProfiles });
+    } catch {
+      get().showToast("Failed to load MCP profiles", "error");
+    }
+  },
+
+  createMcpProfile: async (name) => {
+    try {
+      await createMcpProfileIPC(name);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to create MCP profile", "error");
+      return false;
+    }
+  },
+
+  activateMcpProfile: async (name) => {
+    try {
+      await activateMcpProfileIPC(name);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to activate MCP profile", "error");
+      return false;
+    }
+  },
+
+  deactivateMcpProfile: async () => {
+    try {
+      await deactivateMcpProfileIPC();
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to deactivate MCP profile", "error");
+      return false;
+    }
+  },
+
+  deleteMcpProfile: async (name) => {
+    try {
+      await deleteMcpProfileIPC(name);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || `Failed to delete ${name}`, "error");
+      return false;
+    }
+  },
+
+  readMcpProfile: async (name) => {
+    try {
+      const detail = await readMcpProfileIPC(name);
+      return detail.content;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to read MCP profile", "error");
+      return "";
+    }
+  },
+
+  saveMcpProfile: async (name, content) => {
+    try {
+      await saveMcpProfileIPC(name, content);
+      await get().silentReload("mcp");
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to save MCP profile", "error");
+      return false;
+    }
+  },
+
+  previewActivateMcpProfile: async (name) => {
+    try {
+      return await previewActivateMcpProfileIPC(name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      get().showToast(message || "Failed to validate MCP profile", "error");
+      return null;
     }
   },
 

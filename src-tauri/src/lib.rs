@@ -2,6 +2,7 @@ mod claude_md;
 mod commands;
 mod groups;
 mod mcp;
+mod mcp_profiles;
 mod models;
 mod parser;
 mod scanner;
@@ -28,6 +29,14 @@ fn make_builder() -> tauri_specta::Builder<tauri::Wry> {
         mcp::create_mcp_server,
         mcp::update_mcp_server,
         mcp::delete_mcp_server,
+        mcp_profiles::list_mcp_profiles,
+        mcp_profiles::read_mcp_profile,
+        mcp_profiles::create_mcp_profile,
+        mcp_profiles::save_mcp_profile,
+        mcp_profiles::delete_mcp_profile,
+        mcp_profiles::preview_activate_mcp_profile,
+        mcp_profiles::activate_mcp_profile,
+        mcp_profiles::deactivate_mcp_profile,
         commands::toggle_item,
         commands::toggle_batch,
         commands::frontend_ready,

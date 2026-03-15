@@ -849,7 +849,8 @@ fn config_from_parts(
                 return Err("Command MCP servers cannot define headers".into());
             }
             Ok(RawMcpServerConfig {
-                r#type: Some("command".into()),
+                // Claude Code stores command-based MCP servers as stdio.
+                r#type: Some("stdio".into()),
                 command: Some(command),
                 args: (!args.is_empty()).then_some(args),
                 env: (!env.is_empty()).then_some(normalize_string_map(env)),
@@ -984,6 +985,7 @@ fn infer_server_type(config: &RawMcpServerConfig) -> McpServerType {
     match config.r#type.as_deref() {
         Some("http") => McpServerType::Http,
         Some("sse") => McpServerType::Sse,
+        Some("stdio") => McpServerType::Command,
         Some("command") => McpServerType::Command,
         _ if config.command.is_some() => McpServerType::Command,
         _ if config.url.is_some() => McpServerType::Http,
@@ -1466,6 +1468,14 @@ mod tests {
         .unwrap();
         assert_eq!(created.name, "beta");
         assert!(created.can_edit);
+
+        let created_value: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(project_root.join(".mcp.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            created_value["mcpServers"]["beta"]["type"],
+            serde_json::json!("stdio")
+        );
 
         let updated = update_mcp_server_for_project(
             &global_dir,
