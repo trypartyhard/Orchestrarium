@@ -177,6 +177,10 @@ function persistSetupIds(ids: Set<string>, ctx?: ContextType, proj?: string | nu
 }
 
 async function loadMcpState(ctx: ContextType, projectDir: string | null) {
+  if (ctx === "project" && !projectDir) {
+    return { mcpServers: [], mcpProfiles: [] };
+  }
+
   const mcpServers = await getMcpServers();
   const canLoadProfiles = ctx === "global" || (ctx === "project" && !!projectDir);
   const mcpProfiles = canLoadProfiles
@@ -220,7 +224,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } else {
       localStorage.removeItem("orchestrarium-project-dir");
     }
-    set({ projectDir: path });
+    set({
+      projectDir: path,
+      ...(path ? {} : { mcpServers: [], mcpProfiles: [] }),
+    });
     if (get().activeContext === "project" && path) {
       await get().reloadForContext();
     }

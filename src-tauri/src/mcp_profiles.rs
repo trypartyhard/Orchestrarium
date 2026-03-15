@@ -435,14 +435,18 @@ fn activate_profile_in(
 
     let path = profile_path_for(orchestrarium_dir, name);
     let profile = parse_profile_text(&read_optional_text(&path)?, &path, Some(name))?;
+    let previous_active_name = read_active_name_for(orchestrarium_dir)?;
+    let previous_managed_state = read_managed_state_optional_for(orchestrarium_dir)?;
+    let previous_live_servers = read_live_servers(scope, live_config_path)?;
     let owned_servers = sorted_server_names(profile.servers.keys());
     let normalized_servers = normalize_live_server_configs(&profile.servers)?;
     let snapshot = StoredMcpProfileSnapshot {
         name: profile.name.clone(),
         servers: normalized_servers.clone(),
     };
-    let old_owned = read_managed_state_optional_for(orchestrarium_dir)?
-        .map(|state| state.owned_servers)
+    let old_owned = previous_managed_state
+        .as_ref()
+        .map(|state| state.owned_servers.clone())
         .unwrap_or_default();
 
     mutate_live_servers_with_retry(scope, live_config_path, |live_servers| {
@@ -455,16 +459,37 @@ fn activate_profile_in(
         Ok(())
     })?;
 
-    write_managed_state_for(
-        orchestrarium_dir,
-        &ManagedStateFile {
-            version: MANAGED_STATE_VERSION,
-            active_profile: Some(profile.name.clone()),
-            owned_servers,
-            applied_profile_snapshot: Some(snapshot),
-        },
-    )?;
-    write_active_name_for(orchestrarium_dir, &profile.name)?;
+    let metadata_result = (|| -> Result<(), String> {
+        write_managed_state_for(
+            orchestrarium_dir,
+            &ManagedStateFile {
+                version: MANAGED_STATE_VERSION,
+                active_profile: Some(profile.name.clone()),
+                owned_servers,
+                applied_profile_snapshot: Some(snapshot),
+            },
+        )?;
+        write_active_name_for(orchestrarium_dir, &profile.name)?;
+        Ok(())
+    })();
+
+    if let Err(error) = metadata_result {
+        let live_restore_error =
+            replace_live_servers_with_retry(scope, live_config_path, &previous_live_servers).err();
+        let metadata_restore_error = restore_profile_metadata(
+            orchestrarium_dir,
+            previous_active_name.as_deref(),
+            previous_managed_state.as_ref(),
+        )
+        .err();
+        return Err(format_recovery_failure(
+            "Failed to finalize MCP profile activation",
+            &error,
+            live_restore_error,
+            metadata_restore_error,
+        ));
+    }
+
     Ok(())
 }
 
@@ -488,6 +513,9 @@ fn deactivate_profile_in(
         }
     };
 
+    let previous_live_servers = read_live_servers(scope, live_config_path)?;
+    let previous_active_name = active_name.clone();
+    let previous_managed_state = Some(state.clone());
     let owned_servers = state.owned_servers.clone();
     mutate_live_servers_with_retry(scope, live_config_path, |live_servers| {
         for server_name in &owned_servers {
@@ -496,8 +524,29 @@ fn deactivate_profile_in(
         Ok(())
     })?;
 
-    clear_active_name_for(orchestrarium_dir)?;
-    clear_managed_state_for(orchestrarium_dir)?;
+    let metadata_result = (|| -> Result<(), String> {
+        clear_active_name_for(orchestrarium_dir)?;
+        clear_managed_state_for(orchestrarium_dir)?;
+        Ok(())
+    })();
+
+    if let Err(error) = metadata_result {
+        let live_restore_error =
+            replace_live_servers_with_retry(scope, live_config_path, &previous_live_servers).err();
+        let metadata_restore_error = restore_profile_metadata(
+            orchestrarium_dir,
+            previous_active_name.as_deref(),
+            previous_managed_state.as_ref(),
+        )
+        .err();
+        return Err(format_recovery_failure(
+            "Failed to finalize MCP profile deactivation",
+            &error,
+            live_restore_error,
+            metadata_restore_error,
+        ));
+    }
+
     Ok(())
 }
 
@@ -602,6 +651,36 @@ fn clear_managed_state_for(orchestrarium_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn write_managed_state_optional_for(
+    orchestrarium_dir: &Path,
+    state: Option<&ManagedStateFile>,
+) -> Result<(), String> {
+    match state {
+        Some(state) => write_managed_state_for(orchestrarium_dir, state),
+        None => clear_managed_state_for(orchestrarium_dir),
+    }
+}
+
+fn write_active_name_optional_for(
+    orchestrarium_dir: &Path,
+    name: Option<&str>,
+) -> Result<(), String> {
+    match name {
+        Some(name) => write_active_name_for(orchestrarium_dir, name),
+        None => clear_active_name_for(orchestrarium_dir),
+    }
+}
+
+fn restore_profile_metadata(
+    orchestrarium_dir: &Path,
+    active_name: Option<&str>,
+    managed_state: Option<&ManagedStateFile>,
+) -> Result<(), String> {
+    write_managed_state_optional_for(orchestrarium_dir, managed_state)?;
+    write_active_name_optional_for(orchestrarium_dir, active_name)?;
+    Ok(())
+}
+
 fn normalize_profile_for_save(
     name: String,
     content: &str,
@@ -628,13 +707,7 @@ fn parse_profile_text(
 
     for (server_name, config) in &profile.servers {
         validate_server_name(server_name)?;
-        if !config.is_object() {
-            return Err(format!(
-                "Server '{}' in {} must be a JSON object",
-                server_name,
-                path.display()
-            ));
-        }
+        validate_live_server_config(server_name, config, path)?;
     }
 
     Ok(profile)
@@ -983,8 +1056,17 @@ fn validate_profile_name(name: &str) -> Result<String, String> {
     if trimmed.is_empty() {
         return Err("MCP profile name is required".into());
     }
+    if trimmed.starts_with('.') {
+        return Err("MCP profile name cannot start with '.'".into());
+    }
     if trimmed.contains("::") {
         return Err("MCP profile name cannot contain '::'".into());
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') {
+        return Err("MCP profile name cannot contain path separators".into());
+    }
+    if trimmed.contains("..") {
+        return Err("MCP profile name cannot contain '..'".into());
     }
     Ok(trimmed.to_string())
 }
@@ -1194,6 +1276,40 @@ where
     }
 }
 
+fn replace_live_servers_with_retry(
+    scope: ProfileScope,
+    live_config_path: &Path,
+    live_servers: &BTreeMap<String, Value>,
+) -> Result<(), String> {
+    let replacement = live_servers.clone();
+    mutate_live_servers_with_retry(scope, live_config_path, move |current_live_servers| {
+        *current_live_servers = replacement.clone();
+        Ok(())
+    })
+}
+
+fn format_recovery_failure(
+    action: &str,
+    error: &str,
+    live_restore_error: Option<String>,
+    metadata_restore_error: Option<String>,
+) -> String {
+    let mut message = format!("{}: {}", action, error);
+    if let Some(live_restore_error) = live_restore_error {
+        message.push_str(&format!(
+            "; live MCP rollback failed: {}",
+            live_restore_error
+        ));
+    }
+    if let Some(metadata_restore_error) = metadata_restore_error {
+        message.push_str(&format!(
+            "; profile metadata rollback failed: {}",
+            metadata_restore_error
+        ));
+    }
+    message
+}
+
 fn read_optional_text(path: &Path) -> Result<String, String> {
     if !path.exists() {
         return Ok(String::new());
@@ -1213,6 +1329,214 @@ fn atomic_write(path: &Path, content: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to write temp file for {}: {}", path.display(), e))?;
     temp.persist(path)
         .map_err(|e| format!("Failed to persist {}: {}", path.display(), e.error))?;
+    Ok(())
+}
+
+fn validate_live_server_config(
+    server_name: &str,
+    config: &Value,
+    path: &Path,
+) -> Result<(), String> {
+    let object = config.as_object().ok_or_else(|| {
+        format!(
+            "Server '{}' in {} must be a JSON object",
+            server_name,
+            path.display()
+        )
+    })?;
+
+    let explicit_type = match object.get("type") {
+        Some(Value::String(value)) => Some(value.as_str()),
+        Some(_) => {
+            return Err(format!(
+                "Server '{}' in {} field 'type' must be a string",
+                server_name,
+                path.display()
+            ))
+        }
+        None => None,
+    };
+
+    let command = read_required_string_field(object, "command", server_name, path, false)?;
+    let url = read_required_string_field(object, "url", server_name, path, false)?;
+
+    validate_optional_string_array(object, "args", server_name, path)?;
+    validate_optional_string_map(object, "env", server_name, path)?;
+    validate_optional_string_map(object, "headers", server_name, path)?;
+
+    match explicit_type {
+        Some("command") | Some("stdio") => {
+            ensure_field_present(command.as_deref(), "command", server_name, path)?;
+            ensure_fields_absent(object, &["url", "headers"], server_name, path)?;
+        }
+        Some("http") | Some("sse") => {
+            ensure_field_present(url.as_deref(), "url", server_name, path)?;
+            ensure_fields_absent(object, &["command", "args", "env"], server_name, path)?;
+        }
+        Some(other) => {
+            return Err(format!(
+                "Server '{}' in {} has unsupported type '{}'",
+                server_name,
+                path.display(),
+                other
+            ))
+        }
+        None if command.is_some() => {
+            ensure_fields_absent(object, &["url", "headers"], server_name, path)?;
+        }
+        None if url.is_some() => {
+            ensure_fields_absent(object, &["command", "args", "env"], server_name, path)?;
+        }
+        None => {
+            return Err(format!(
+                "Server '{}' in {} must define either a command or a url",
+                server_name,
+                path.display()
+            ))
+        }
+    }
+
+    Ok(())
+}
+
+fn read_required_string_field(
+    object: &serde_json::Map<String, Value>,
+    field_name: &str,
+    server_name: &str,
+    path: &Path,
+    required: bool,
+) -> Result<Option<String>, String> {
+    match object.get(field_name) {
+        Some(Value::String(value)) => {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(format!(
+                    "Server '{}' in {} field '{}' cannot be empty",
+                    server_name,
+                    path.display(),
+                    field_name
+                ));
+            }
+            Ok(Some(trimmed.to_string()))
+        }
+        Some(_) => Err(format!(
+            "Server '{}' in {} field '{}' must be a string",
+            server_name,
+            path.display(),
+            field_name
+        )),
+        None if required => Err(format!(
+            "Server '{}' in {} requires field '{}'",
+            server_name,
+            path.display(),
+            field_name
+        )),
+        None => Ok(None),
+    }
+}
+
+fn validate_optional_string_array(
+    object: &serde_json::Map<String, Value>,
+    field_name: &str,
+    server_name: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let Some(value) = object.get(field_name) else {
+        return Ok(());
+    };
+
+    let items = value.as_array().ok_or_else(|| {
+        format!(
+            "Server '{}' in {} field '{}' must be an array of strings",
+            server_name,
+            path.display(),
+            field_name
+        )
+    })?;
+
+    for item in items {
+        if !matches!(item, Value::String(_)) {
+            return Err(format!(
+                "Server '{}' in {} field '{}' must contain only strings",
+                server_name,
+                path.display(),
+                field_name
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_optional_string_map(
+    object: &serde_json::Map<String, Value>,
+    field_name: &str,
+    server_name: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let Some(value) = object.get(field_name) else {
+        return Ok(());
+    };
+
+    let entries = value.as_object().ok_or_else(|| {
+        format!(
+            "Server '{}' in {} field '{}' must be an object of strings",
+            server_name,
+            path.display(),
+            field_name
+        )
+    })?;
+
+    for (entry_name, entry_value) in entries {
+        if !matches!(entry_value, Value::String(_)) {
+            return Err(format!(
+                "Server '{}' in {} field '{}.{}' must be a string",
+                server_name,
+                path.display(),
+                field_name,
+                entry_name
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn ensure_field_present(
+    value: Option<&str>,
+    field_name: &str,
+    server_name: &str,
+    path: &Path,
+) -> Result<(), String> {
+    if value.is_some() {
+        return Ok(());
+    }
+
+    Err(format!(
+        "Server '{}' in {} requires field '{}'",
+        server_name,
+        path.display(),
+        field_name
+    ))
+}
+
+fn ensure_fields_absent(
+    object: &serde_json::Map<String, Value>,
+    field_names: &[&str],
+    server_name: &str,
+    path: &Path,
+) -> Result<(), String> {
+    for field_name in field_names {
+        if object.contains_key(*field_name) {
+            return Err(format!(
+                "Server '{}' in {} cannot define field '{}' for this MCP server type",
+                server_name,
+                path.display(),
+                field_name
+            ));
+        }
+    }
+
     Ok(())
 }
 
@@ -1678,6 +2002,61 @@ mod tests {
             .issues
             .iter()
             .any(|issue| !issue.blocking && issue.message.contains("edited")));
+    }
+
+    #[test]
+    fn profile_names_cannot_escape_profiles_directory() {
+        let temp = TempDir::new().unwrap();
+        let orch = orchestrarium_dir(&temp);
+
+        let err = create_profile_in(&orch, "bad/name").unwrap_err();
+        assert!(err.contains("path separators"));
+    }
+
+    #[test]
+    fn save_profile_rejects_invalid_http_shape() {
+        let temp = TempDir::new().unwrap();
+        let orch = orchestrarium_dir(&temp);
+
+        let err = save_profile_in(
+            &orch,
+            "broken-http",
+            r#"{
+              "name": "broken-http",
+              "servers": {
+                "docs": {
+                  "type": "http"
+                }
+              }
+            }"#,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("requires field 'url'"));
+    }
+
+    #[test]
+    fn save_profile_rejects_conflicting_command_shape() {
+        let temp = TempDir::new().unwrap();
+        let orch = orchestrarium_dir(&temp);
+
+        let err = save_profile_in(
+            &orch,
+            "broken-command",
+            r#"{
+              "name": "broken-command",
+              "servers": {
+                "filesystem": {
+                  "type": "command",
+                  "command": "npx",
+                  "url": "https://example.com/not-valid"
+                }
+              }
+            }"#,
+        )
+        .unwrap_err();
+
+        assert!(err.contains("cannot define field 'url'"));
     }
 
     #[test]
