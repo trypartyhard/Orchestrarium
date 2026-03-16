@@ -1,13 +1,15 @@
 {
   "name": "orchestrarium",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "sync:download-links": "node scripts/update-readme-download-links.mjs",
+    "check:download-links": "node scripts/update-readme-download-links.mjs --check",
     "test": "vitest run",
     "test:watch": "vitest"
   },
