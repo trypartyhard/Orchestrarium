@@ -2,13 +2,13 @@
 
 # Orchestrarium
 
-**Agent & Skill Orchestration for Claude Code**
+**Workspace Manager for Agent Configurations**
 
 A visual desktop app to browse, organize, and toggle Claude Code agents, skills, commands, `CLAUDE.md` profiles, and MCP servers — without editing files manually.
 
-[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.2/Orchestrarium_0.2.2_x64-setup.exe)
-[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.2/Orchestrarium_0.2.2_x64.dmg)
-[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.2/Orchestrarium_0.2.2_amd64.deb)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.3/Orchestrarium_0.2.3_x64-setup.exe)
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.3/Orchestrarium_0.2.3_x64.dmg)
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.3/Orchestrarium_0.2.3_amd64.deb)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri)](https://v2.tauri.app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 

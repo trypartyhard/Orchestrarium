@@ -33,6 +33,11 @@ const baseUrl = `https://github.com/trypartyhard/Orchestrarium/releases/download
 
 const replacements = [
   {
+    label: "README subtitle",
+    pattern: /\*\*.*\*\*/,
+    expected: "**Workspace Manager for Agent Configurations**",
+  },
+  {
     label: "Windows badge",
     pattern:
       /\[!\[Windows\]\(https:\/\/img\.shields\.io\/badge\/Windows-0078D6\?logo=windows&logoColor=white\)\]\([^)]+\)/,

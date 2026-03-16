@@ -37,30 +37,19 @@ function LogoIcon() {
 export function TitleBar() {
   return (
     <div
-      className="relative flex h-11 shrink-0 items-center bg-[#111116]"
-      data-tauri-drag-region
+      className="grid h-11 shrink-0 grid-cols-[144px_minmax(0,1fr)_144px] items-center bg-[#111116]"
     >
-      {/* Logo left */}
-      <div className="pl-4" data-tauri-drag-region>
+      <div className="flex h-full items-center pl-4" data-tauri-drag-region>
         <LogoIcon />
       </div>
 
-      {/* Title centered */}
-      <div className="absolute inset-0 flex items-center justify-center gap-2 pointer-events-none">
-        <span className="text-[14px] font-bold tracking-[1.5px] text-[#f0f0f8]">
+      <div className="pointer-events-none flex items-center justify-center" data-tauri-drag-region>
+        <span className="text-[14px] font-bold tracking-[0.32em] text-[#f0f0f8]">
           ORCHESTRARIUM
-        </span>
-        <span className="h-1 w-1 rounded-full bg-gradient-to-r from-[#4DE3FF] via-[#7C5CFF] to-[#2AF7C5] opacity-50" />
-        <span className="text-[11px] text-[#7a7a88]">
-          Agent & Skill Orchestration
         </span>
       </div>
 
-      {/* Spacer for drag */}
-      <div className="flex-1" data-tauri-drag-region />
-
-      {/* Window Controls */}
-      <div className="flex h-full items-center">
+      <div className="flex h-full items-center justify-end">
         <button
           onClick={() => appWindow.minimize()}
           aria-label="Minimize window"

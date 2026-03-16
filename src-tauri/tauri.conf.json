@@ -1,6 +1,6 @@
 {
   "productName": "Orchestrarium",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "identifier": "com.orchestrarium.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -41,7 +41,7 @@
       }
     },
     "publisher": "Orchestrarium",
-    "shortDescription": "Agent & Skill Orchestration for Claude Code"
+    "shortDescription": "Workspace Manager for Agent Configurations"
   },
   "plugins": {
     "fs": {
