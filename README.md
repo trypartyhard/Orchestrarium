@@ -4,9 +4,7 @@
 
 **Agent & Skill Orchestration for Claude Code**
 
-A visual desktop app to browse, organize, and toggle Claude Code agents, skills, commands, and CLAUDE.md profiles — without editing files manually.
-
-*Built entirely through conversation with [Claude Code](https://docs.anthropic.com/en/docs/claude-code), without writing a single line of code manually.*
+A visual desktop app to browse, organize, and toggle Claude Code agents, skills, commands, `CLAUDE.md` profiles, and MCP servers — without editing files manually.
 
 [![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.2/Orchestrarium_0.2.2_x64-setup.exe)
 [![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)](https://github.com/trypartyhard/Orchestrarium/releases/download/v0.2.2/Orchestrarium_0.2.2_x64.dmg)
@@ -22,9 +20,9 @@ A visual desktop app to browse, organize, and toggle Claude Code agents, skills,
 
 ## What is Orchestrarium?
 
-Claude Code stores agents, skills, and commands as `.md` files in `~/.claude/`. Disabling an item means moving it into a `.disabled/` subfolder. Enabling it means moving it back.
+Claude Code stores agents, skills, and commands as `.md` files in `~/.claude/`. MCP servers live in Claude config files such as `~/.claude.json` and project `.mcp.json`.
 
-Orchestrarium gives you a clean UI to do this with a single click — plus saved setups, CLAUDE.md profile switching, project-level management, and more.
+Orchestrarium gives you a clean UI to browse, toggle, and organize all of that — plus saved setups, `CLAUDE.md` profile switching, MCP profile activation, project-level management, and more.
 
 ---
 
@@ -36,6 +34,7 @@ Orchestrarium gives you a clean UI to do this with a single click — plus saved
   - [Agents / Skills / Commands](#agents--skills--commands)
   - [Library](#library)
   - [CLAUDE.md Profiles](#claudemd-profiles)
+  - [MCP Servers](#mcp-servers)
   - [Project Context](#project-context)
   - [Settings](#settings)
 - [Screenshots](#screenshots)
@@ -66,11 +65,22 @@ Disabled items are stored in a `.disabled/` subfolder inside each directory (e.g
 
 - **Subfolders** — only top-level `.md` files are detected. Nested directories like `commands/gsd/*.md` are not scanned yet (subfolder support is on the [roadmap](#roadmap)).
 - **Non-`.md` files** — `.txt`, `.json`, and other formats are ignored.
-- **Other directories** — only `agents/`, `skills/`, and `commands/` are scanned. Files in the root of `~/.claude/` (like `CLAUDE.md`) are managed separately through the [CLAUDE.md Profiles](#claudemd-profiles) section.
+- **Other directories** — only `agents/`, `skills/`, and `commands/` are scanned for `.md` items. Files in the root of `~/.claude/` like `CLAUDE.md`, plus JSON configs such as `~/.claude.json` and `.mcp.json`, are managed separately through the [CLAUDE.md Profiles](#claudemd-profiles) and [MCP Servers](#mcp-servers) sections.
 
 ### If your folders are empty
 
 If you just installed Claude Code and see nothing in Orchestrarium — that's normal. You need to run Claude Code at least once so it can create its configuration directories and populate them with built-in items. You can also manually place `.md` files into the folders listed above, and Orchestrarium will pick them up instantly thanks to the built-in file watcher.
+
+### Where MCP servers come from
+
+MCP servers are read from Claude config files rather than `.md` files:
+
+| Context | Source files |
+|---------|--------------|
+| **Global** | `~/.claude.json` |
+| **Project** | `~/.claude.json` + `{project}/.mcp.json` |
+
+Orchestrarium can activate saved MCP profiles into those live config files and, in project context, create or edit project-local servers in `.mcp.json`.
 
 ---
 
@@ -135,6 +145,18 @@ Setups are stored in `~/.claude/orchestrarium/setups.json`.
 - **Delete** — removes a profile. If it was active, CLAUDE.md is also cleared.
 
 Profiles are stored in `~/.claude/orchestrarium/claude-profiles/`.
+
+### MCP Servers
+
+The MCP page has two views: **Profiles** and **Live Servers**.
+
+- **Profiles** — create saved MCP bundles, edit their JSON, preview them, and activate/deactivate them into the current context.
+- **Preflight validation** — before activation, Orchestrarium checks for conflicts, drift, or broken state and shows whether activation is safe.
+- **Global context** — manage global MCP profiles against `~/.claude.json`.
+- **Project context** — manage project-scoped MCP profiles and work with project-local servers from `{project}/.mcp.json`.
+- **Live Servers** — inspect the currently active MCP servers, search/filter them, and see whether they come from `~/.claude.json` or `.mcp.json`.
+- **Project-local editing** — create, edit, and delete project-local MCP servers directly from the UI without hand-editing `.mcp.json`.
+- **Project toggles** — for supported project-local servers, enable/disable state is written as project overrides in `~/.claude.json` while the source definition stays in `.mcp.json`.
 
 ### Project Context
 
@@ -222,7 +244,7 @@ When disabling an item from an active group:
 ## Installation
 
 1. Download the latest installer for your platform from [Releases](../../releases):
-   - **Windows:** `.exe` installer
+   - **Windows:** `.exe` installer (`.msi` is also available in Releases)
    - **macOS:** `.dmg` (Apple Silicon & Intel)
    - **Linux:** `.deb` / `.AppImage`
 2. Run the installer
@@ -242,6 +264,10 @@ When disabling an item from an active group:
 | Activate Setup | Items in the setup are enabled, **everything else is disabled** |
 | Activate CLAUDE.md profile | Profile content copied to `~/.claude/CLAUDE.md` |
 | Deactivate profile | `~/.claude/CLAUDE.md` cleared |
+| Activate MCP profile | Profile content is applied to `~/.claude.json` or `{project}/.mcp.json` depending on context |
+| Deactivate MCP profile | Managed MCP profile state is removed from the live config while manual entries are preserved |
+| Edit project-local MCP server | `{project}/.mcp.json` is created or updated |
+| Toggle project-local MCP server | Project overrides are updated in `~/.claude.json` |
 
 ---
 
@@ -249,7 +275,7 @@ When disabling an item from an active group:
 
 - **Frontend:** React 19, TypeScript, Tailwind CSS 4, Zustand 5
 - **Backend:** Tauri 2, Rust
-- **Testing:** Vitest (46 tests), Cargo test (42 tests)
+- **Testing:** Vitest, Cargo test
 
 ---
 
@@ -269,7 +295,6 @@ Thank you for reading this far — for me, that's already a small victory and mo
 
 - ~~**Project-level scope**~~ ✅ — done in v0.2.1
 - **Subfolder support** — scan and manage agents in nested directories (e.g. `commands/gsd/*.md`)
-- **MCP server management** — configure and toggle MCP servers
 - **Agent creator** — create new agents directly from the UI
 - **Content preview** — view full agent/skill content inline in the card
 - **Drag & drop import** — drag `.md` files into the app to install them
