@@ -37,14 +37,14 @@ function LogoIcon() {
 export function TitleBar() {
   return (
     <div
-      className="grid h-11 shrink-0 grid-cols-[144px_minmax(0,1fr)_144px] items-center bg-[#111116]"
+      className="grid h-11 shrink-0 select-none grid-cols-[144px_minmax(0,1fr)_144px] items-center bg-[#111116]"
     >
       <div className="flex h-full items-center pl-4" data-tauri-drag-region>
         <LogoIcon />
       </div>
 
-      <div className="pointer-events-none flex items-center justify-center" data-tauri-drag-region>
-        <span className="text-[14px] font-bold tracking-[0.32em] text-[#f0f0f8]">
+      <div className="flex h-full items-center justify-center" data-tauri-drag-region>
+        <span className="bg-[linear-gradient(90deg,#4DE3FF_0%,#7C5CFF_48%,#2AF7C5_100%)] bg-clip-text text-[14px] font-bold tracking-[0.32em] text-transparent [filter:drop-shadow(0_0_8px_rgba(77,227,255,0.18))]">
           ORCHESTRARIUM
         </span>
       </div>
