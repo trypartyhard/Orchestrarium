@@ -44,7 +44,7 @@ export function TitleBar() {
       </div>
 
       <div className="flex h-full items-center justify-center" data-tauri-drag-region>
-        <span className="bg-[linear-gradient(90deg,#4DE3FF_0%,#7C5CFF_48%,#2AF7C5_100%)] bg-clip-text text-[14px] font-bold tracking-[0.32em] text-transparent [filter:drop-shadow(0_0_8px_rgba(77,227,255,0.18))]">
+        <span className="pointer-events-none bg-[linear-gradient(90deg,#4DE3FF_0%,#7C5CFF_48%,#2AF7C5_100%)] bg-clip-text text-[14px] font-bold tracking-[0.32em] text-transparent [filter:drop-shadow(0_0_8px_rgba(77,227,255,0.18))]">
           ORCHESTRARIUM
         </span>
       </div>

@@ -1,6 +1,6 @@
 {
   "productName": "Orchestrarium",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "com.orchestrarium.desktop",
   "build": {
     "frontendDist": "../dist",
