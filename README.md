@@ -41,8 +41,6 @@ Orchestrarium gives you a clean UI to browse, toggle, and organize all of that �
 - [How it works](#how-it-works)
 - [Tech Stack](#tech-stack)
 - [The Story](#the-story)
-- [Roadmap](#roadmap)
-
 ---
 
 ## Where do agents, skills, and commands come from?
@@ -62,7 +60,7 @@ Disabled items are stored in a `.disabled/` subfolder inside each directory (e.g
 
 ### What is NOT scanned
 
-- **Subfolders** вЂ” only top-level `.md` files are detected. Nested directories like `commands/gsd/*.md` are not scanned yet (subfolder support is on the [roadmap](#roadmap)).
+- **Subfolders** вЂ” only top-level `.md` files are detected. Nested directories like `commands/gsd/*.md` are not scanned yet.
 - **Non-`.md` files** вЂ” `.txt`, `.json`, and other formats are ignored.
 - **Other directories** вЂ” only `agents/`, `skills/`, and `commands/` are scanned for `.md` items. Files in the root of `~/.claude/` like `CLAUDE.md`, plus JSON configs such as `~/.claude.json` and `.mcp.json`, are managed separately through the [CLAUDE.md Profiles](#claudemd-profiles) and [MCP Servers](#mcp-servers) sections.
 
@@ -229,18 +227,6 @@ I wanted to see my agents, skills, and commands laid out visually вЂ” what's
 I want you to know: **I don't speak English natively and I don't know how to code.** I built this entirely by talking to Claude Code вЂ” setting tasks, structuring conversations, and iterating until I got what I wanted. I think I did a decent job considering my limitations.
 
 Thank you for reading this far вЂ” for me, that's already a small victory and motivation to keep going.
-
----
-
-## Roadmap
-
-- ~~**Project-level scope**~~ вњ… вЂ” done in v0.2.1
-- **Subfolder support** вЂ” scan and manage agents in nested directories (e.g. `commands/gsd/*.md`)
-- **Agent creator** вЂ” create new agents directly from the UI
-- **Content preview** вЂ” view full agent/skill content inline in the card
-- **Drag & drop import** вЂ” drag `.md` files into the app to install them
-
-Have an idea? [Open an issue](../../issues) вЂ” feedback and contributions are welcome.
 
 ---
 
